@@ -1,22 +1,156 @@
 from pydub.effects import high_pass_filter, low_pass_filter
+from datetime import datetime, timedelta
+from datasets import Dataset
 from pyannote.audio import Pipeline
+from collections import Counter
 from pydub import AudioSegment
 from io import BytesIO
-import torch
-import noisereduce as nr
 import pyloudnorm as pyln
+import noisereduce as nr
 import soundfile as sf
-import numpy as np
+import pandas as pd
+import numpy as np 
 import subprocess
-import librosa
 import tempfile
+import librosa
+import torch
 import pickle
+import wave
 import json
-import os
+import re
 import io
-import gc
-import assemblyai as aai
-import requests
+import os
+
+
+class DataProcessor:
+    def data_to_df(self, dataset, columns):
+        if isinstance(dataset, list):
+            return pd.DataFrame(dataset, columns=columns)
+       
+    def df_to_hfdata(self, df):
+        return Dataset.from_pandas(df)
+
+    def merge_data(self, df1, df2, how='inner', on=None):
+        return pd.merge(df1, df2, how='inner')
+
+    def filter_data(self, df, col, val):
+        return df[df[col]==val].reset_index(drop=True)
+    
+    def remove_keywords(self, df, col, keyword=None, exceptions=None):
+        if exceptions != None: 
+            if keyword != None:
+                # pattern = r'(?<![\w가-힣])(?:' + '|'.join(map(re.escape, keyword)) + r')(?![\w가-힣])'
+                pattern = re.compile(r'(?<![\w가-힣])(' + '|'.join(map(re.escape, val)) + r')(?=[^가-힣]|$)')
+            else:
+                pattern = r'(?<![\w가-힣])(\S*주)(?![\w가-힣])'    # 테마주 같은 함정 증권 종목 제거 
+            mask = df[col].str.contains(pattern, na=False) & ~df[col].str.contains('|'.join(map(re.escape, exceptions)), na=False)
+            df = df[~mask]
+            return df.reset_index(drop=True)
+        else: 
+            keyword_idx = df[df[col].str.contains(keyword, na=False)].index 
+            df.drop(keyword_idx, inplace=True)
+            return df.reset_index(drop=True)
+        
+    def save_results_to_pickle(self, result, output_file):
+        with open(output_file, "wb") as f:
+            pickle.dump(result, f)
+        print(f"Results saved to {output_file}")
+
+    def load_results_from_pickle(self, input_file):
+        with open(input_file, "rb") as f:
+            result = pickle.load(f)
+        print(f"Results loaded from {input_file}")
+        return result
+
+
+class TextProcessor:
+    def count_pattern(self, text, patterns):
+        cnt = 0 
+        for pattern in sorted(patterns, reverse=True):
+            if pattern in text: 
+                cnt += 1 
+                text = text.replace(pattern, '', 1)
+        return cnt 
+                   
+    def remove_duplications(self, text):
+        '''
+        줄바꿈 문자를 비롯한 특수 문자 중복을 제거합니다.
+        '''
+        text = re.sub(r'(\n\s*)+\n+', '\n\n', text)    # 다중 줄바꿈 문자 제거
+        text = re.sub(r"\·{1,}", " ", text)    
+        return re.sub(r"\.{1,}", ".", text)
+        
+    def remove_patterns(self, text, pattern):
+        '''
+        입력된 패턴을 제거합니다. 
+        pattern:
+        r'^\d+\.\s*': "숫자 + ." 
+        r"(뉴스|주식|정보|분석)$": 삼성전자뉴스 -> 삼성전자
+        '''
+        return re.sub(pattern, '', text)
+    
+    def check_expr(self, expr, text):
+        '''
+        expr 값이 text에 있는지 검사합니다. 있다면 True를, 없다면 False를 반환합니다. 
+        '''
+        return bool(re.search(expr, text))
+    
+    def get_val(self, val, text):
+        '''
+        expr 값이 text에 있으면 반환합니다.  
+        '''
+        if isinstance(val, str):
+            return re.search(rf'\b{re.escape(val)}\b')
+        elif isinstance(val, list):
+            return [re.search(rf'\b{re.escape(v)}\b') for v in val]
+    
+    def get_val_with_indices(self, val, text):
+        '''
+        val 값이 text에 있으면 시작과 끝 위치 정보와 함께 값을 반환합니다.
+        '''
+        found_stocks = []
+        if isinstance(val, str):
+            pattern = rf'(^|[^a-zA-Z0-9가-힣]){re.escape(val)}($|[^a-zA-Z0-9가-힣])'
+            matches = list(re.finditer(pattern, text))
+            for match in matches:
+                # 매칭된 텍스트에서 실제 단어의 시작과 끝 위치 조정
+                start = match.start() + (1 if match.group(1) else 0)
+                end = match.end() - (1 if match.group(2) else 0)
+                found_stocks.append((val, start, end))
+            return found_stocks
+        elif isinstance(val, list):
+            pattern = re.compile(r'\b(?:' + '|'.join(map(re.escape, val)) + r')\b')
+            matches = [(match.group(), match.start(), match.end()) for match in pattern.finditer(text)]
+            return matches 
+            
+    def check_l2_threshold(self, txt, threshold, value):
+        '''   
+        threshold 보다 값이 높은 경우, 모르는 정보로 간주합니다. 
+        '''
+        print(f'Euclidean Distance: {value}, Threshold: {threshold}')
+        return "모르는 정보입니다." if value > threshold else txt
+    
+
+class TimeProcessor:
+    def get_previous_day_date(self):
+        '''
+        전일 연도, 월, 일을 반환합니다.   
+        returns: 
+        20240103
+        '''
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        return str(yesterday.year), str(yesterday.month).zfill(2), str(yesterday.day).zfill(2)
+
+    def get_current_date(self):
+        '''
+        현재 연도, 월, 일을 반환합니다.
+        '''
+        now = datetime.now()
+        return str(now.year), str(now.month).zfill(2), str(now.day).zfill(2)
+
+    def get_current_time(self):
+        return datetime.now()
 
 
 class AudioFileProcessor:
@@ -68,9 +202,9 @@ class AudioFileProcessor:
             temp_file.write(audio_bytesio.getvalue())
             temp_file.flush()
             return temp_file.name
-
-    def file_to_wav(self, file_path, wav_file_path, file_type, sample_rate=None, channels=None, bit_depth=None):
-        if file_type == 'pcm':
+    
+    def pcm_to_wav(self, pcm_file_path, wav_file_path, sample_rate=44100, channels=1, bit_depth=16):
+        try:
             with open(pcm_file_path, 'rb') as pcm_file:   # PCM 파일 열기
                 pcm_data = pcm_file.read()
 
@@ -79,10 +213,14 @@ class AudioFileProcessor:
                 wav_file.setsampwidth(bit_depth // 8)   # 샘플 당 바이트 수
                 wav_file.setframerate(sample_rate)   # 샘플링 속도
                 wav_file.writeframes(pcm_data)   # PCM 데이터 쓰기
-        elif file_type == 'm4a':
-            audio_file = AudioSegment.from_file(m4a_path, format='m4a')
-            wav_path = m4a_path.replace('m4a', 'wav')
-            audio_file.export(wav_path, format='wav')
+            print(f"WAV 파일이 성공적으로 생성되었습니다: {wav_file_path}")
+        except Exception as e:
+            print(f"오류 발생: {e}")
+
+    def m4a_to_wav(self, m4a_path):
+        audio_file = AudioSegment.from_file(m4a_path, format='m4a')
+        wav_path = m4a_path.replace('m4a', 'wav')
+        audio_file.export(wav_path, format='wav')
 
 
 class NoiseHandler: 
@@ -106,66 +244,14 @@ class NoiseHandler:
         # noise_profile = y[:sr]   # 배경 잡음 프로파일 추출 (초기 1초)
         # y_denoised = nr.reduce_noise(y=y, sr=sr, y_noise=noise_profile, prop_decreaese=prop_decrease)   # 잡음 제거
         y_denoised = nr.reduce_noise(y=y, sr=sr, prop_decrease=prop_decrease)
-        del y
-        gc.collect()
-
         if output_file: 
             sf.write(output_file, y_denoised, sr)
             print(f"Saved denoised audio to {output_file}")
+        
         wav_buffer = io.BytesIO()   # 메모리 내 WAV 파일 생성
         sf.write(wav_buffer, y_denoised, sr, format='WAV')
         wav_buffer.seek(0)   # 파일 포인터를 처음으로 이동
-        del y_denoised
-        gc.collect()
         return wav_buffer
-
-    def remove_noise_with_ffmpeg(self, input_file, output_file=None, model_file="rnnoise_model.rnnn"):
-        """
-        FFmpeg을 사용한 배경 잡음 제거.
-        Args:
-            input_file: 입력 오디오 파일 (str, os.PathLike, io.BytesIO).
-            output_file: 출력 파일 경로 (str). 지정하지 않으면 BytesIO로 반환.
-            model_file: RNNoise 모델 파일 경로 (str).
-        Returns:
-            io.BytesIO: 잡음 제거된 오디오 데이터를 담은 BytesIO 객체 (output_file이 None일 때).
-        """
-        # 입력 파일 처리
-        if isinstance(input_file, io.BytesIO):
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_input:
-                temp_input.write(input_file.getvalue())
-                temp_input.flush()
-                input_source = temp_input.name
-        elif isinstance(input_file, (str, os.PathLike)):
-            input_source = input_file
-        else:
-            raise ValueError("input_file must be a file path or a BytesIO object")
-
-        try:
-            # FFmpeg 명령어 구성
-            command = [
-                "ffmpeg",
-                "-y",
-                "-i", input_source,
-                "-af", f"arnndn=m={model_file}",
-                "-f", "wav",
-            ]
-
-            if output_file:
-                command.append(output_file)
-                subprocess.run(command, check=True)
-                print(f"Noise removed audio saved to {output_file}")
-                return output_file
-            else:
-                command.append("pipe:1")  # 표준 출력으로 결과 전달
-                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                stdout, stderr = process.communicate()
-                if process.returncode != 0:
-                    raise RuntimeError(f"FFmpeg error: {stderr.decode()}")
-                return io.BytesIO(stdout)  # BytesIO로 반환
-        finally:
-            # 임시 파일 정리
-            if isinstance(input_file, io.BytesIO) and 'temp_input' in locals():
-                os.unlink(temp_input.name)
 
     def filter_audio_with_pydub(self, input_file, high_cutoff=200, low_cutoff=3000, output_file=None):
         '''
@@ -186,40 +272,61 @@ class NoiseHandler:
             audio_buffer.seek(0)
             return audio_buffer
 
-    def filter_audio_with_ffmpeg(self, input_file, high_cutoff=50, low_cutoff=4000, output_file=None):
+    def filter_audio_with_ffmpeg(self, input_file, high_cutoff=200, low_cutoff=3000, output_file=None):
         """
         FFmpeg을 사용한 오디오 필터링 (고역대, 저역대).
+        Args:
+            input_file (str or BytesIO): 입력 오디오 파일 경로 또는 BytesIO 객체.
+            high_cutoff (int): 고역 필터 컷오프 주파수 (Hz).
+            low_cutoff (int): 저역 필터 컷오프 주파수 (Hz).
+            output_file (str, optional): 필터링된 오디오 저장 경로. 지정되지 않으면 메모리로 반환.
+        Returns:
+            io.BytesIO: 필터링된 오디오 데이터 (output_file이 None인 경우).
         """
-        if isinstance(input_file, io.BytesIO):
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_input:
-                temp_input.write(input_file.getvalue())
-                temp_input.flush()
-                input_source = temp_input.name
-        elif isinstance(input_file, (str, os.PathLike)):
-            input_source = input_file
-
+        input_source = None   # 변수 초기화
+        temp_files = []   # 임시 파일을 저장할 리스트
         try:
-            command = [
+            if isinstance(input_file, AudioSegment):   # AudioSegment 객체 처리
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_input:
+                    input_file.export(temp_input, format="wav")   # AudioSegment -> WAV 변환
+                    temp_input.flush()
+                    input_source = temp_input.name
+                    temp_files.append(temp_input.name)   # 임시 파일 관리
+            elif isinstance(input_file, io.BytesIO):   # BytesIO 객체 처리
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_input:
+                    temp_input.write(input_file.getvalue())
+                    temp_input.flush()
+                    input_source = temp_input.name
+                    temp_files.append(temp_input.name)   # 임시 파일 관리
+            elif isinstance(input_file, (str, os.PathLike)):   # 파일 경로 처리
+                input_source = input_file
+            else:
+                raise ValueError("Invalid input_file type. Must be AudioSegment, file path, or BytesIO object.")
+
+            if input_source is None:
+                raise RuntimeError("Failed to determine input source.")
+
+            command = [   # FFmpeg 명령 실행
                 "ffmpeg",
-                "-y",
-                "-i", input_source,
-                "-af", f"highpass=f={high_cutoff},lowpass=f={low_cutoff}",
-                "-f", "wav",
-                "pipe:1" if not output_file else output_file
+                "-i", input_source,  # 입력 파일
+                "-af", f"highpass=f={high_cutoff},lowpass=f={low_cutoff}",  # 필터 적용
+                "-f", "wav",  # 출력 형식
+                "pipe:1" if not output_file else output_file  # 메모리로 반환하거나 파일로 저장
             ]
+
             if output_file:
                 subprocess.run(command, check=True)
                 print(f"Filtered audio saved to {output_file}")
-                
-            # stdout으로 데이터를 읽고 BytesIO로 반환
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
-            if process.returncode != 0:
-                raise RuntimeError(f"FFmpeg error: {stderr.decode()}")
-            return io.BytesIO(stdout)  # BytesIO로 반환
+            else:
+                process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                stdout, stderr = process.communicate()
+                if process.returncode != 0:
+                    raise RuntimeError(f"FFmpeg error: {stderr.decode()}")
+                return io.BytesIO(stdout)  # BytesIO로 반환
         finally:
-            if isinstance(input_file, io.BytesIO) and 'temp_input' in locals():
-                os.unlink(temp_input.name)
+            for temp_file in temp_files:   # 임시 파일 삭제
+                if os.path.exists(temp_file):
+                    os.unlink(temp_file)
 
 
 class VoiceEnhancer:
@@ -267,15 +374,6 @@ class VoiceEnhancer:
         normalized_audio.export(output_file, format="wav")
         return output_file
 
-        # RMS 기반 볼륨 정규화 + 클리핑 방지
-        change_in_dBFS = target_dbfs - audio.dBFS
-        if change_in_dBFS < 0:  # 음량 감소
-            normalized_audio = audio.apply_gain(change_in_dBFS)
-        else:
-            # 음량 증가 시 클리핑 방지
-            normalized_audio = audio.apply_gain(change_in_dBFS).clip(min=-1.0, max=1.0)
-
-
     def normalize_audio_lufs(self, audio_input, target_lufs=-14.0, output_file=None):
         """
         LUFS 기반 오디오 정규화
@@ -301,7 +399,7 @@ class VoiceEnhancer:
             sf.write(wav_buffer, loudness_normalized_audio, rate, format='WAV')
             wav_buffer.seek(0)
             return wav_buffer
-            
+
 
 class VoiceSeperator:
     '''
@@ -332,6 +430,25 @@ class SpeakerDiarizer:
         self.pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=self.hf_api)
         self.pipeline.to(self.device)
 
+    def rename_speaker(self, result, num_speakers):
+        '''
+        화자 분리 결과에서 발화량이 많은 순으로 화자 번호 재부여
+        초과하는 화자의 발화를 제거
+        '''
+        # 발언량에 따라 화자 정렬 및 매핑 생성   
+        speaker_counts = Counter(entry['speaker'] for entry in result)
+        print(f'speaker_counts: {speaker_counts}')
+        sorted_speakers = [speaker for speaker, _ in speaker_counts.most_common()]
+        speaker_mapping = {old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(sorted_speakers)}
+
+        # 화자 번호 재매핑 및 제거
+        filtered_result = []
+        for entry in result:
+            new_speaker = speaker_mapping[entry['speaker']]
+            entry['speaker'] = new_speaker
+            filtered_result.append(entry)
+        return filtered_result
+
     def convert_segments(self, result):
         """
         화자 분리 결과를 적절한 형식으로 변환.
@@ -346,40 +463,7 @@ class SpeakerDiarizer:
             "end": segment.end,
             "speaker": speaker
         }
-
-    def _process_local_diarization(self, audio_file, max_speakers):
-        """
-        perform local speaker diarization.
-        Parameters:
-            audio_file: str
-                Path to the audio file.
-            num_speakers: int or None
-                Number of speakers to use for diarization.
-        returns:
-            list
-                A list of processed diarization results.
-        """
-        try:
-            diarization = self.pipeline(audio_file, num_speakers=None)
-        except Exception as e:
-            print(f"[ERROR] Diarization failed: {e}")
-            return []
-
-        speaker_durations = {}     # Calculate total durations for each speaker
-        for turn, _, speaker in diarization.itertracks(yield_label=True):
-            speaker_durations[speaker] = speaker_durations.get(speaker, 0) + (turn.end - turn.start)
-
-        top_speakers = sorted(speaker_durations, key=speaker_durations.get, reverse=True)[:max_speakers]    # Select top N speakers based on duration
-        filtered_diarization = []    # Filter diarization results to include only top speakers
-        for turn, _, speaker in diarization.itertracks(yield_label=True):
-            if speaker in top_speakers:
-                filtered_diarization.append((turn.start, turn.end, speaker))
-
-        results = []   # Convert results
-        for start, end, speaker in filtered_diarization:
-            results.append(self.convert_segments((start, end, speaker)))
-        return results
-
+        
     def seperate_speakers(self, data_p, audio_file, local=True, num_speakers=None, save_path=None, file_name=None):
         """
         화자 분리 실행 및 결과 저장.
@@ -391,25 +475,60 @@ class SpeakerDiarizer:
         """
         if isinstance(audio_file, io.BytesIO):   # 입력 데이터 형식 확인 및 변환
             audio_file = data_p.bytesio_to_tempfile(audio_file)
-        
+
         results = []
         if local:
-            try:   # Pyannote Pipeline 초기화
-                diarization = self.pipeline(audio_file)
+            try:     # Pyannote Pipeline 초기화
+                diarization = self.pipeline(audio_file, num_speakers=None)
             except Exception as e:
                 print(f"[ERROR] Diarization failed: {e}")
                 return
-            for result in diarization.itertracks(yield_label=True):  # result: (<Segment>, _, speaker)
-                if int(result[-1].split('_')[-1]) > num_speakers - 1:
-                    continue 
+            for result in diarization.itertracks(yield_label=True):    # result: (<Segment>, _, speaker)
                 converted_info = self.convert_segments(result)
+                segment_duration = converted_info['end'] - converted_info['start']
+                #if segment_duration < 1.5:
+                #    continue
                 results.append(converted_info)
         else:
-            pass 
+            pass
+        diar_result = self.rename_speaker(results, num_speakers)
+
         if save_path != None:    # 저장 경로 확인 및 결과 저장
             os.makedirs(save_path, exist_ok=True)
             save_file_path = os.path.join(save_path, file_name)
             with open(save_file_path, "w") as f:
-                json.dump(results, f, indent=4)
+                json.dump(diar_result, f, indent=4)
             print(f"Results saved to {save_file_path}")
-        return results
+        return diar_result
+
+
+class ETC:
+    '''
+    당장 쓰이지 않는 메서드 정의
+    '''
+    def get_model_response(self, df, user_id, query):
+        qa_pairs = []
+        current_question = None
+        question_time = None
+
+        user_df = df[df['user_id'] == user_id].reset_index(drop=True)
+        user_df = user_df.sort_values('date')
+        # user_df.to_csv('./debug_user.csv', index=False)
+        
+        for i, row in user_df.iterrows():   # 질문-응답 매칭 루프
+            if row['q/a'] == 'Q' and row['content'] == query:
+                current_question = row['content']
+                question_time = row['date']
+            elif row['q/a'] == 'A' and current_question is not None:
+                response_time = row['date']   # 질문에 대한 응답을 기록
+                time_diff = response_time - question_time   # 시간 차이가 많이 나지 않는 경우에만 질문과 응답을 매칭
+                if time_diff.seconds < 300:  # 5분 이내
+                    qa_pairs.append({
+                        'question': current_question,
+                        'answer': row['content'],
+                        'question_time': question_time,
+                        'answer_time': response_time
+                    })
+                current_question = None   # 응답 처리 후 질문 초기화
+                question_time = None
+        return qa_pairs

@@ -14,6 +14,6 @@ if __name__ == '__main__':
     cli_parser.add_argument('--data_path', type=str, default='./data')
     cli_parser.add_argument('--output_path', type=str, default='./data/output')
     cli_parser.add_argument('--file_name', type=str, default=None)
-    cli_parser.add_argument('--file_type, type=str, default='pcm')
+    cli_parser.add_argument('--file_type', type=str, default='pcm')
     cli_args = cli_parser.parse_args()
     main(cli_args)

@@ -2,7 +2,9 @@ from pydub import AudioSegment
 from openai import OpenAI
 from abc import ABC, abstractmethod
 import tempfile
+import json
 import io
+import re
 
 class STTModule:
     def __init__(self, openai_api_key=None, ms_api=None):
@@ -23,8 +25,27 @@ class WhisperSTT(STTModule):
         super().__init__(openai_api_key=openai_api_key)
     
     def set_client(self):
-        # print(f'test: {self.openai_api_key}')
         self.openai_client = OpenAI(api_key=self.openai_api_key)
+
+    def load_word_dictionary(self, json_path):
+        with open(json_path, mode='r', encoding='utf-8') as file:
+            self.word_dict = json.load(file)
+            return json.load(file)
+    
+    def apply_word_dictionary(self, stt_text, word_dict):
+        for incorrect_word, correct_word in word_dict.items():
+            stt_text = stt_text.replace(incorrect_word, correct_word)
+        return stt_text
+    
+    def apply_word_dictionary_regex(self, stt_text, word_dict):
+        for incorrect_word, correct_word in word_dict.items():
+            stt_text = re.sub(rf'\b{re.escape(incorrect_word)}\b', correct_word, stt_text)
+        return stt_text
+    
+    def process_whisper(self, data_p, audio_file):
+        '''
+        
+        '''
 
     def process_segments_with_whisper(self, data_p, audio_file, segments):
         """
@@ -37,13 +58,10 @@ class WhisperSTT(STTModule):
             audio_file = data_p.bytesio_to_tempfile(audio_file)
         
         results = []
-        include_word = ['네', '아니오']
+        exclude_word = ['뉴스', '구독', '좋아요']
         audio = AudioSegment.from_file(audio_file)
         for i, segment in enumerate(segments):
-            segment_duration = segment['end'] - segment['start']
-            if segment_duration < 0.1:
-                print(f"Skipping segment {i}: Duration too short ({segment_duration:.2f}s)")
-                continue
+            # segment_duration = segment['end'] - segment['start']
             start_ms = int(segment['start'] * 1000)
             end_ms = int(segment['end'] * 1000)
             segment_audio = audio[start_ms:end_ms]
@@ -62,23 +80,15 @@ class WhisperSTT(STTModule):
                             language='ko',
                             # prompt="이 대화는 이뤄지는 한국어 대화입니다."
                         )
-                    if segment_duration < 2:
-                        tmp = transcription.text.replace(",. ", "")
-                        if len(tmp) >= 4:        
-                            print(f"Skipping segment {i}: Duration too short ({segment_duration:.2f}s)")
-                            continue
-                        else:
-                            if not any(word in transcription.text for word in include_word):
-                                print(f"Skipping segment {i}: Duration too short ({segment_duration:.2f}s)")
-                                continue
-                                
-                    if transcription.text == '':
+                    modified_text = self.apply_word_dictionary(transcription.text, self.word_dict)   
+                    pattern = r'(^|\s|[^가-힣a-zA-Z0-9])(' + '|'.join(map(re.escape, exclude_word)) + r')($|\s|[^가-힣a-zA-Z0-9])'
+                    if re.search(pattern, modified_text):
                         continue
                     results.append({
                         "speaker": segment["speaker"],
                         "start_time": round(segment["start"], 2),
                         "end_time": round(segment["end"], 2),
-                        "text": transcription.text
+                        "text": modified_text
                     })
             except Exception as e:
                 print(f"Error processing segment {i} for Speaker {segment['speaker']}: {e}")
