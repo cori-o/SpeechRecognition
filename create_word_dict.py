@@ -3,5 +3,12 @@ import json
 import os
 
 data = pd.read_csv(os.path.join('./data/word_dict.csv'), header=None, names=['원래 단어', '수정 단어'])
-sorted_df = data.sort_values(by="수정 단어").reset_index(drop=True)
-print(sorted_df)
+sorted_df = data.sort_values(by="수정 단어").reset_index(drop=True)   # "수정 단어" 기준으로 정렬
+word_dict = sorted_df.set_index('원래 단어')['수정 단어'].to_dict()   # DataFrame을 딕셔너리로 변환
+
+# 딕셔너리를 JSON 파일로 저장
+output_path = './data/word_dictionary.json'
+with open(output_path, 'w', encoding='utf-8') as file:
+    json.dump(word_dict, file, ensure_ascii=False, indent=4)
+
+print(f"JSON 파일로 저장되었습니다: {output_path}")

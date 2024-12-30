@@ -152,6 +152,30 @@ class TimeProcessor:
     def get_current_time(self):
         return datetime.now()
 
+    def is_similar(diar_seg, stt_seg):
+        '''
+        두 세그먼트 간 겹치는 길이와 발화 시간이 유사한지 검사
+        '''
+        diar_start, diar_end = diar_seg['start'], diar_seg['end']
+        stt_start, stt_end = stt_seg['start_time'], stt_seg['end_time']
+
+        diar_duration = diar_end - diar_start
+        stt_duration = stt_end - stt_start
+
+        TIME_TOLERANCE = 1.5   # 허용 오차(초)
+
+        # 겹치는 구간 계산
+        overlap_start = max(diar_start, stt_start)
+        overlap_end = min(diar_end, stt_end)
+        overlap_duration = max(0, overlap_end - overlap_start)
+        # print(diar_seg, stt_seg)
+        print(f'overlap duration: {overlap_duration}, abs: {abs(diar_duration - stt_duration)}')
+
+        # 조건: 겹침이 충분히 길고, 발화 시간도 비슷해야 함
+        if overlap_duration > 0.5 and abs(diar_duration - stt_duration) < TIME_TOLERANCE:
+            return True
+        else:
+            return False
 
 class AudioFileProcessor:
     def align_audio(self, reference_file, target_file, output_file):
@@ -430,24 +454,44 @@ class SpeakerDiarizer:
         self.pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=self.hf_api)
         self.pipeline.to(self.device)
 
-    def rename_speaker(self, result, num_speakers):
+    def rename_speaker(self, result):
         '''
         화자 분리 결과에서 발화량이 많은 순으로 화자 번호 재부여
         초과하는 화자의 발화를 제거
         '''
-        # 발언량에 따라 화자 정렬 및 매핑 생성   
         speaker_counts = Counter(entry['speaker'] for entry in result)
         print(f'speaker_counts: {speaker_counts}')
         sorted_speakers = [speaker for speaker, _ in speaker_counts.most_common()]
         speaker_mapping = {old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(sorted_speakers)}
 
-        # 화자 번호 재매핑 및 제거
         filtered_result = []
         for entry in result:
             new_speaker = speaker_mapping[entry['speaker']]
             entry['speaker'] = new_speaker
             filtered_result.append(entry)
         return filtered_result
+    
+    def filter_speaker_segments(self, segments):
+        '''
+        겹치는 발화 제거 (0~10, 3~5 -> 3~5 제거)
+        '''
+        filtered_segments = []
+        for i, seg in enumerate(segments):
+            if i > 0 and seg["speaker"] != segments[i - 1]["speaker"]:   # 이전 발화와 확인
+                prev_seg = segments[i - 1]
+                if prev_seg["start"] <= seg["start"] and seg["end"] <= prev_seg["end"]:
+                    continue
+            filtered_segments.append(seg)
+        return filtered_segments
+    
+    def calc_speak_duration(self, segments, speaker):
+        speak_time = 0; cnt = 0
+        for seg in segments:
+            if seg['speaker'] == speaker:
+                speak_duration = seg['end'] - seg['start']
+                speak_time += speak_duration 
+                cnt += 1
+        print(f'{speaker}: {round((speak_time / cnt), 2)}초')
 
     def convert_segments(self, result):
         """
@@ -463,7 +507,26 @@ class SpeakerDiarizer:
             "end": segment.end,
             "speaker": speaker
         }
-        
+
+    def merge_diarization_segments_with_priority(diar_segments):
+        """Diarization 구간 병합 시 추임새와 긴 발화 분리"""
+        merged_segments = []
+        FILLER_THRESHOLD = 2.0   # 추임새로 간주할 최대 길이 (초)
+        for seg in diar_segments:
+            if not merged_segments:
+                merged_segments.append(seg)
+                continue
+            last_seg = merged_segments[-1]
+
+            # 화자가 다르고, 추임새로 간주되는 경우 (추임새는 긴 발화 구간에 병합하지 않음)
+            if last_seg['speaker'] != seg['speaker'] and (seg['end'] - seg['start']) <= FILLER_THRESHOLD:
+                merged_segments.append(seg)
+            elif last_seg['speaker'] == seg['speaker'] and last_seg['end'] >= seg['start']:
+                last_seg['end'] = max(last_seg['end'], seg['end'])   # 같은 화자의 연속된 발화 병합
+            else:
+                merged_segments.append(seg)   # 새로운 화자 구간 추가
+        return merged_segments
+            
     def seperate_speakers(self, data_p, audio_file, local=True, num_speakers=None, save_path=None, file_name=None):
         """
         화자 분리 실행 및 결과 저장.
@@ -478,28 +541,24 @@ class SpeakerDiarizer:
 
         results = []
         if local:
-            try:     # Pyannote Pipeline 초기화
-                diarization = self.pipeline(audio_file, num_speakers=None)
-            except Exception as e:
-                print(f"[ERROR] Diarization failed: {e}")
-                return
-            for result in diarization.itertracks(yield_label=True):    # result: (<Segment>, _, speaker)
+            print(f'start diarization')
+            diarization = self.pipeline(audio_file, num_speakers=None)
+            for result in diarization.itertracks(yield_label=True):   # result: (<Segment>, _, speaker)
                 converted_info = self.convert_segments(result)
-                segment_duration = converted_info['end'] - converted_info['start']
-                #if segment_duration < 1.5:
-                #    continue
                 results.append(converted_info)
         else:
             pass
-        diar_result = self.rename_speaker(results, num_speakers)
-
+        filtered_result = self.filter_speaker_segments(results)
+        merged_result = self.merge_diarization_segments_with_priority(filtered_result)
+        diar_result = self.rename_speaker(merged_result)
+        
         if save_path != None:    # 저장 경로 확인 및 결과 저장
             os.makedirs(save_path, exist_ok=True)
             save_file_path = os.path.join(save_path, file_name)
             with open(save_file_path, "w") as f:
                 json.dump(diar_result, f, indent=4)
             print(f"Results saved to {save_file_path}")
-        return diar_result
+        return results
 
 
 class ETC:

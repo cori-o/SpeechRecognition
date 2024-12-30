@@ -1,5 +1,5 @@
 from src import NoiseHandler, VoiceEnhancer, VoiceSeperator, SpeakerDiarizer
-from src import DataProcessor
+from src import DataProcessor, AudioFileProcessor
 from src import WhisperSTT
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
@@ -15,8 +15,8 @@ def main(args):
     file_name = args.file_name
     audio_file_path = os.path.join(args.data_path, file_name)    
 
-    data_p = DataProcessor()
-    audio_chunk = data_p.audio_chunk(audio_file_path, chunk_length=600, chunk_file_path=os.path.join(args.output_path, 'chunk'), chunk_file_name='stt-20241210-test1')
+    audio_p = AudioFileProcessor()
+    audio_chunk = audio_p.audio_chunk(audio_file_path, chunk_length=270, chunk_file_path=os.path.join(args.output_path, 'chunk'), chunk_file_name='chunk_' + args.file_name.split('.')[0])
 
 
 if __name__ == '__main__':
