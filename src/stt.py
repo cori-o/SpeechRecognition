@@ -1,7 +1,7 @@
-from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
-from openai import OpenAI
 from abc import ABC, abstractmethod
+from pydub import AudioSegment
+from openai import OpenAI
 import tempfile
 import json
 import io
@@ -47,7 +47,6 @@ class WhisperSTT(STTModule):
     def filter_stt_result(self, results):
         filtered_results = []
         prev_text = None
-        
         for segment in results:
             text = segment['text'].strip()
             if text == prev_text:  # 이전 텍스트와 동일하면 제거
@@ -96,14 +95,13 @@ class WhisperSTT(STTModule):
                         print('true')
                         stt_segment['speaker'] = nested['speaker']
                         return stt_segment
-            # 또 다른 발화가 없을 때 
+            # 또 다른 발화가 없을 때
             max_overlap = 0
             best_speaker = 'Unknown'
             for diar_seg in candidates:
                 overlap_start = max(stt_start, diar_seg['start'])
                 overlap_end = min(stt_end, diar_seg['end'])
                 overlap_duration = max(0, overlap_end - overlap_start)
-
                 if overlap_duration > max_overlap:
                     max_overlap = overlap_duration
                     best_speaker = diar_seg['speaker']
@@ -121,7 +119,7 @@ class WhisperSTT(STTModule):
         elif isinstance(audio_file, io.BytesIO):
             audio_file = audio_p.bytesio_to_tempfile(audio_file)
         
-        nonsilent_s = self.calculate_nonsilent_start(audio_file)
+        # nonsilent_s = self.calculate_nonsilent_start(audio_file)
         audio = AudioSegment.from_file(audio_file)  # 컨텍스트 매니저 제거
         whisper_audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
         # self.load_word_dictionary(os.path.join('./config', 'word_dict.json'))
@@ -133,20 +131,20 @@ class WhisperSTT(STTModule):
                     file=audio_file,
                     language='ko',
                     response_format="verbose_json",
-                    timestamp_granularities=["segment"]
+                    #timestamp_granularities=["segment"]
                 )
-
         segments = transcription.segments
         print(f'trans result: {transcription.segments}')   # id, avg_logprob, compression_ratio, end, no_speech_prob, seek, start, temperature (0.0), text, tokens
         results = []
         for segment in segments:
-            if segment.no_speech_prob < 0.9:
+            if segment.no_speech_prob < 0.9 and segment.avg_logprob > -3.3:
                 modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
                 results.append({
-                    'start_time': round(segment.start, 5) + nonsilent_s,
-                    'end_time': round(segment.end, 5) + nonsilent_s,
-                    'text': modified_text,
-                    'prob': segment.no_speech_prob
+                    'start_time': round(segment.start, 5),   # + nonsilent_s  제거. 초반만 이상하고, 후반에는 원상 복귀됨 
+                    'end_time': round(segment.end, 5),   # + nonsilent_s 
+                    'text': modified_text.strip(),
+                    'prob': segment.no_speech_prob,
+                    'avg_logprob': segment.avg_logprob
                 })
         filtered_results = self.filter_stt_result(results)
         return filtered_results

@@ -9,7 +9,7 @@ import os
 
 def main(args):
     file_name = args.file_name
-    audio_file_path = os.path.join(args.data_path, args.file_name)
+    audio_file_path = os.path.join(args.data_path, 'output/chunk', args.file_name)
 
     load_dotenv()
     openai_api_key = os.getenv('OPENAI_API')
@@ -17,13 +17,9 @@ def main(args):
     audio_p = AudioFileProcessor()
     noise_handler = NoiseHandler()
     voice_enhancer = VoiceEnhancer()
-    filtered_audio = noise_handler.filter_audio_with_ffmpeg(audio_file_path, high_cutoff=150, low_cutoff=5000)
-    # print(filtered_audio)
+    filtered_audio = noise_handler.filter_audio_with_ffmpeg(audio_file_path, high_cutoff=80, low_cutoff=4000)
     nnnoise_audio = noise_handler.remove_background_noise(filtered_audio, output_file=os.path.join(args.data_path, 'lufs_denoised_' + args.file_name), prop_decrease=0.7)
-    # nnnoise_audio = noise_handler.remove_noise_with_ffmpeg(filtered_audio, output_file=os.path.join(args.data_path, 'lufs_ffmpeg_denoised_' + args.file_name))
-    normalized_audio = voice_enhancer.normalize_audio_lufs(nnnoise_audio, output_file=os.path.join(args.data_path, 'lufs_norm_' + args.file_name))
-    
-    # print(nnnoise_audio)
+    # normalized_audio = voice_enhancer.normalize_audio_lufs(nnnoise_audio, output_file=os.path.join(args.data_path, 'lufs_norm_' + args.file_name))
     
 
 if __name__ == '__main__':

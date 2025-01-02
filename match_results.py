@@ -1,14 +1,17 @@
 from pydub import AudioSegment
 from pydub.silence import detect_nonsilent
 import json
+import librosa
+import numpy as np
 import os 
 
+'''
 with open(os.path.join('./data', 'diar_chunk_lufs_norm_ibk-poc-meeting_20241220_0-p.json'), mode='r', encoding='utf-8') as f:
     diar_data = json.load(f)
 
 with open(os.path.join('./data/result', 'cstt_lufs_norm_ibk-poc-meeting_20241220_0.json'), mode='r', encoding='utf-8') as f:
     stt_data = json.load(f)
-
+'''
 TIME_TOLERANCE = 0.5
 
 def merge_diarization_segments_with_priority(diar_segments):
@@ -98,6 +101,7 @@ def is_similar(diar_seg, stt_seg):
     else:
         return False
 
+'''
 merged_diar_data = merge_diarization_segments_with_priority(diar_data)
 with open('./data/updated_diar_with_speakers-merged.json', 'w') as output_file:
     json.dump(merged_diar_data, output_file, ensure_ascii=False, indent=4)
@@ -113,7 +117,7 @@ with open('./data/updated_stt_with_speakers.json', 'w') as output_file:
     json.dump(updated_stt_data, output_file, ensure_ascii=False, indent=4)
 print("화자 정보가 추가된 STT 결과가 저장되었습니다.")
 
-def calculate_nonsilent_start(audio_file_path, silence_thresh=-30, min_silence_len=500):
+def calculate_nonsilent_start(audio_file_path, silence_thresh=-40, min_silence_len=200):
     """
     Calculate the start time of the first non-silent portion in an audio file.
     args:
@@ -126,6 +130,40 @@ def calculate_nonsilent_start(audio_file_path, silence_thresh=-30, min_silence_l
     audio = AudioSegment.from_file(audio_file_path)
     nonsilent_ranges = detect_nonsilent(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
     start_time_ms = nonsilent_ranges[0][0] if nonsilent_ranges else 0
-    return start_time_ms / 1000  # Convert ms to seconds
+    return start_time_ms / 1000  # Convert ms to seconds'''
 
-print(calculate_nonsilent_start('./data/output/chunk/chunk_lufs_norm_ibk-poc-meeting_20241220_5.wav'))
+'''
+def calculate_nonsilent_start_by_frequency(audio_file_path, male_range=(80, 120), female_range=(165, 255), sr=22050):
+    """
+    Detect the start time of the first non-silent portion based on frequency ranges.
+    args:
+        audio_file_path (str): Path to the audio file.
+        male_range (tuple): Frequency range for male voices (in Hz).
+        female_range (tuple): Frequency range for female voices (in Hz).
+        sr (int): Sampling rate.
+    returns:
+        float: Start time of the first non-silent portion in seconds.
+    """
+    y, sr = librosa.load(audio_file_path, sr=sr)
+    D = np.abs(librosa.stft(y))
+
+    freqs = librosa.fft_frequencies(sr=sr)
+
+    male_mask = (freqs >= male_range[0]) & (freqs <= male_range[1])
+    female_mask = (freqs >= female_range[0]) & (freqs <= female_range[1])
+
+    male_energy = D[male_mask].sum(axis=0)
+    female_energy = D[female_mask].sum(axis=0)
+    total_energy = male_energy + female_energy
+
+    # Detect non-silent frames (threshold can be adjusted)
+    threshold = np.max(total_energy) * 0.1  # 10% of max energy
+    nonsilent_frames = np.where(total_energy > threshold)[0]
+
+    if nonsilent_frames.size > 0:
+        start_time = librosa.frames_to_time(nonsilent_frames[0], sr=sr)
+    else:
+        start_time = 0.0
+    return start_time'''
+
+print(calculate_nonsilent_start_by_frequency('/ibk/STT/data/lufs_denoised_chunk_ibk-meeting_0.wav'))

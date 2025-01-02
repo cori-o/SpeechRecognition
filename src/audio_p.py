@@ -508,7 +508,7 @@ class SpeakerDiarizer:
             "speaker": speaker
         }
 
-    def merge_diarization_segments_with_priority(diar_segments):
+    def merge_diarization_segments_with_priority(self, diar_segments):
         """Diarization 구간 병합 시 추임새와 긴 발화 분리"""
         merged_segments = []
         FILLER_THRESHOLD = 2.0   # 추임새로 간주할 최대 길이 (초)
