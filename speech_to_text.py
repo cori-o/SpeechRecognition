@@ -22,14 +22,10 @@ def main(args):
     openai_api_key = os.getenv('OPENAI_API')
     openai_client = OpenAI(api_key=openai_api_key)
 
-    hf_api_key = os.getenv('HF_API')
-    data_p = DataProcessor(); audio_p = AudioFileProcessor()
-    noise_handler = NoiseHandler()
-    voice_enhancer = VoiceEnhancer()
-    voice_seperator = VoiceSeperator()
+    audio_p = AudioFileProcessor()
 
-    #speaker_diarizer = SpeakerDiarizer()
-    #speaker_diarizer.set_pyannotate(hf_api_key)
+    # speaker_diarizer = SpeakerDiarizer()
+    # speaker_diarizer.set_pyannotate(hf_api_key)
     stt_module = WhisperSTT(openai_api_key)
     stt_module.set_client()
     stt_module.load_word_dictionary('./config/word_dictionary.json')
