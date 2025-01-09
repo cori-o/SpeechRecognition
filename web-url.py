@@ -36,9 +36,6 @@ openai_client.set_generation_config()
 openai_client.set_grammer_guideline()'''
 resultMapper = ResultMapper()
 
-stt_result_path = '/ibk/meeting_records/stt_result/' + audio_file_name.replace('.wav', '.json')
-db_stt_result_path = '/home/jsh0630/meeting_records/stt_result/' + audio_file_name.replace('.wav', '.json')
-
 @app.route('/stt/', methods=['GET'])
 def get_audio_file():
     file_name = request.args.get('audio_file_name')
