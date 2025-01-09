@@ -1,4 +1,4 @@
-from src import DataProcessor, AudioFileProcessor
+from src import AudioFileProcessor
 from src import WhisperSTT
 from dotenv import load_dotenv
 from pydub import AudioSegment
@@ -51,13 +51,6 @@ def main(args):
                 json.dump(stt_result, output_file, ensure_ascii=False, indent=4)
             print(f"모든 결과가 JSON 파일 '{cstt_file_name}'로 저장되었습니다.")
         print(f"소요 시간: {time.time() - start}")
-    
-    # diar_result = speaker_diarizer.seperate_speakers(audio_p, audio_file_path, num_speakers=args.participant)
-    # with open(os.path.join('./data', diar_file_name), "w", encoding="utf-8") as f:
-    #    json.dump(diar_result, f, ensure_ascii=False, indent=4)
-    
-    # with open(os.path.join('./data', diar_file_name), "r", encoding="utf-8") as f:
-    #    diar_result = json.load(f)
 
 if __name__ == '__main__':
     cli_parser = argparse.ArgumentParser()
