@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 import requests
 import tempfile
 import json
-import io
 import os
 
 app = Flask(__name__)    
@@ -39,7 +38,6 @@ resultMapper = ResultMapper()
 
 stt_result_path = '/ibk/meeting_records/stt_result/' + audio_file_name.replace('.wav', '.json')
 db_stt_result_path = '/home/jsh0630/meeting_records/stt_result/' + audio_file_name.replace('.wav', '.json')
-    
 
 @app.route('/stt/', methods=['GET'])
 def get_audio_file():
@@ -137,6 +135,12 @@ def run_stt_code():
 def merge_result_code():
     data = request.get_json()
     meeting_id = data['meetingId']
+    with open(os.path.join(diar_result_path, 'diar_' + audio_file_name.split('.')[0] + '.json'), 'w', encoding='utf-8') as f:
+        diar_results = json.load(f)
+    stt_results = postgres.get_conf_log_data(meeting_id)
+    for stt_result in stt_results: 
+        resultMapper.map_speaker_with_nested_check(time_p, stt_result, diar_results, meeting_id=meeting_id, table_editor=table_editor)
+    return jsonify({"status": "received"}), 200
 
     
 if __name__ == '__main__':
