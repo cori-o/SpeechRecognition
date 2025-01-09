@@ -4,6 +4,7 @@ from src import DBConnection, TableEditor, PostgresDB
 from src import LLMOpenAI
 from dotenv import load_dotenv
 import requests
+import time 
 import tempfile
 import json
 import os
@@ -114,12 +115,12 @@ def run_stt_code():
     file_name = data['file_name']     # /jsh0630/meeting_records/meeting_302_2025-01-09-16-25-30.wav
 
     file_path = '/ibk/meeting_records/'
-    new_file_name = file_path + file_name.split('/')[-1]    # meeting_302_2025-01-09-16-25-30.wav
-    audio_file_name = new_file_name.split('/')[-1]   # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
-    meeting_id = int(new_file_name.split('/')[-1].split('_')[1])   
+    new_file_name = file_path + file_name.split('/')[-1]    # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
+    audio_file_name = new_file_name.split('/')[-1]   # meeting_302_2025-01-09-16-25-30.wav
+    meeting_id = int(audio_file_name.split('_')[1])
     print(f'meeting ID: {meeting_id}')
     chunk_length = 270
-    audio_chunk = audio_p.audio_chunk(audio_file_name, chunk_length=chunk_length)   # 270 sec 
+    audio_chunk = audio_p.audio_chunk(new_file_name, chunk_length=chunk_length)   # 270 sec 
     for idx, chunk in enumerate(audio_chunk):
         chunk_offset = idx * chunk_length   # 청크의 시작 시간 오프셋 계산
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
@@ -132,7 +133,8 @@ def run_stt_code():
 def merge_result_code():
     data = request.get_json()
     meeting_id = data['meetingId']
-    with open(os.path.join(diar_result_path, 'diar_' + audio_file_name.split('.')[0] + '.json'), 'w', encoding='utf-8') as f:
+    time.sleep(30)
+    with open(os.path.join(diar_result_path, 'diar_' + audio_file_name.split('.')[0] + '.json'), 'r', encoding='utf-8') as f:
         diar_results = json.load(f)
     stt_results = postgres.get_conf_log_data(meeting_id)
     for stt_result in stt_results: 
