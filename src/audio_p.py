@@ -21,7 +21,7 @@ import os
 
 
 class TimeProcessor:
-    def is_similar(diar_seg, stt_result):
+    def is_similar(self, diar_seg, stt_result):
         '''
         두 세그먼트 간 겹치는 길이와 발화 시간이 유사한지 검사
         '''
@@ -469,6 +469,52 @@ class SpeakerDiarizer:
             print(f"Results saved to {save_file_path}")
         return results
 
+class ResultMapper:
+    def map_speaker_with_nested_check(self, time_p, stt_result, diar_segments, meeting_id=None, table_editor=None):
+        """ stt_result: conv_id, start_time, end_time, text, conf_id """
+        conv_id = stt_result[0]
+        print(f'stt_segment: {stt_result}')
+        stt_start, stt_end = stt_result[2], stt_result[3]
+        
+        candidates = []
+        for diar_seg in diar_segments:   # STT 결과값과 겹치는 Diar 구간 탐색 
+            diar_start, diar_end = diar_seg['start'], diar_seg['end']
+            if stt_start <= diar_end and stt_end >= diar_start:  # 겹침 조건
+                candidates.append(diar_seg)
+        
+        if not candidates:
+            print("No overlapping segments found.")
+            return    # DB 업데이트 x 
+
+        for candidate in candidates:
+            diar_start, diar_end = candidate['start'], candidate['end']
+            nested_segments = [     #  Diar 구간 내에 또 다른 구간 탐색 (0~19 -> 13~14)
+                seg for seg in diar_segments
+                if seg['start'] >= diar_start and seg['end'] <= diar_end and seg != candidate
+            ]
+            if nested_segments:   # 또 다른 발화가 있을 때 
+                for nested in nested_segments:
+                    if time_p.is_similar(nested, stt_result):
+                        if meeting_id == None: 
+                            stt_result['speaker'] = nested['speaker']
+                            return stt_result
+                        else:
+                            updated_result = (conv_id, nested['speaker'])
+                            table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)
+                            return 
+                                    
+            # 또 다른 발화가 없을 때 (겹치는 후보군들만 탐색)
+            max_overlap = 0
+            for diar_seg in candidates:
+                overlap_start = max(stt_start, diar_seg['start'])
+                overlap_end = min(stt_end, diar_seg['end'])
+                overlap_duration = max(0, overlap_end - overlap_start)
+                if overlap_duration > max_overlap:
+                    max_overlap = overlap_duration
+                    updated_result = (conv_id, diar_seg['speaker'])
+                    table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)
+                    return 
+            return 
 
 class ETC:
     '''

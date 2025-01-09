@@ -69,42 +69,6 @@ class WhisperSTT(STTModule):
         nonsilent_ranges = detect_nonsilent(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
         start_time_ms = nonsilent_ranges[0][0] if nonsilent_ranges else 0
         return start_time_ms / 1000  # Convert ms to seconds
-    
-    def map_speaker_with_nested_check(self, time_p, diar_segments, stt_result):
-        """STT 구간과 Diarization 구간 비교 후, 중첩된 구간 확인"""
-        stt_start, stt_end = stt_result['start_time'], stt_result['end_time']
-        stt_duration = stt_end - stt_start
-        candidates = []
-
-        for diar_seg in diar_segments:   # STT 결과값과 겹치는 Diar 구간 탐색 
-            diar_start, diar_end = diar_seg['start'], diar_seg['end']
-            if stt_start <= diar_end and stt_end >= diar_start:  # 겹침 조건
-                candidates.append(diar_seg)                
-        print(f'candidate: {candidates}')
-
-        for candidate in candidates:
-            diar_start, diar_end = candidate['start'], candidate['end']
-            nested_segments = [  #  Diar 구간 내에 또 다른 구간 탐색 (0~19 -> 13~14)
-                seg for seg in diar_segments
-                if seg['start'] >= diar_start and seg['end'] <= diar_end and seg != candidate
-            ]
-            if nested_segments:   # 또 다른 발화가 있을 때 
-                for nested in nested_segments:
-                    if time_p.is_similar(nested, stt_segment):
-                        stt_result['speaker'] = nested['speaker']
-                        return stt_result
-            max_overlap = 0
-            best_speaker = 'Unknown'
-            for diar_seg in candidates:
-                overlap_start = max(stt_start, diar_seg['start'])
-                overlap_end = min(stt_end, diar_seg['end'])
-                overlap_duration = max(0, overlap_end - overlap_start)
-                if overlap_duration > max_overlap:
-                    max_overlap = overlap_duration
-                    best_speaker = diar_seg['speaker']
-                    print(f'best_speaker: {best_speaker}')
-            stt_result['speaker'] = best_speaker
-            return stt_result
 
     def process_segments_with_whisper(self, audio_p, audio_file, diar_results, db_stt_result_path, meeting_id, table_editor, openai_client):
         """
