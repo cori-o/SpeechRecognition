@@ -26,7 +26,7 @@ class DBConnection(DB):
     def close(self):
         self.cur.close()
         self.conn.close()
-    
+        
 class PostgresDB:
     '''
     데이터베이스 CRUD (Create, Read, Update, Delete) 작업에 사용되는 클래스
@@ -130,25 +130,8 @@ class TableEditor:
                     (data, )
             )
             self.db_connection.conn.commit()
-
-    def edit_poc_conf_log_tb_prev(self, task, table_name, data_type=None, data=None, col=None, val=None):   # data - meeting
-        cuser_id = self.db_connection.cur.execute(
-                f"""SELECT cuser_id FROM ibk_poc_conf_user WHERE conf_id=%s and speaker_id=%s""",
-                (data, val['speaker'])
-        )
-        cuser_result = self.db_connection.cur.fetchone()
-        if task == 'insert':
-            self.db_connection.cur.execute(
-               f"""INSERT INTO {table_name} (content, start_time, end_time, cuser_id) VALUES (%s, %s, %s, %s)""",
-               (val['text'], val['start_time'], val['end_time'], cuser_result)
-            )
-            self.db_connection.conn.commit()
-        elif task == 'delete':
-            pass 
-        elif task == 'update':
-            pass
     
-    def edit_poc_conf_log_tb(self, task, table_name, data_type=None, data=None, col=None, val=None):   # data - meeting     
+    def edit_poc_conf_log_tb(self, task, table_name, data=None, val=None):   # data - meeting     
         if task == 'insert':
             self.db_connection.cur.execute(
                f"""INSERT INTO {table_name} (start_time, end_time, content, conf_id) VALUES (%s, %s, %s, %s)""",
@@ -158,7 +141,7 @@ class TableEditor:
         elif task == 'delete':
             pass 
         elif task == 'update':   # data: meeting_id
-            cuser_id = self.db_connection.cur.execute(
+            self.db_connection.cur.execute(
                 f"""SELECT cuser_id FROM ibk_poc_conf_user WHERE conf_id=%s and speaker_id=%s""",
                 (data, val[2])
             )

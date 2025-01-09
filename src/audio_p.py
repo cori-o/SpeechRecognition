@@ -495,7 +495,7 @@ class ResultMapper:
             diar_start, diar_end = diar_seg['start'], diar_seg['end']
             if stt_start <= diar_end and stt_end >= diar_start:  # 겹침 조건
                 candidates.append(diar_seg)
-        
+
         if not candidates:
             print("No overlapping segments found.")
             return    # DB 업데이트 x 
@@ -516,7 +516,6 @@ class ResultMapper:
                             updated_result = (conv_id, nested['speaker'])
                             table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)
                             return 
-                                    
             # 또 다른 발화가 없을 때 (겹치는 후보군들만 탐색)
             max_overlap = 0
             for diar_seg in candidates:
