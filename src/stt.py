@@ -48,7 +48,7 @@ class WhisperSTT(STTModule):
         prev_text = None
         for segment in results:
             text = segment['text'].strip()
-            if text == prev_text:  # 이전 텍스트와 동일하면 제거
+            if text == prev_text:    # 이전 텍스트와 동일하면 제거
                 continue
             prev_text = text
             filtered_results.append(segment)
