@@ -469,17 +469,10 @@ class SpeakerDiarizer:
                 results.append(converted_info)
         else:
             pass
-        filtered_result = self.filter_speaker_segments(results)
-        merged_result = self.merge_diarization_segments_with_priority(filtered_result)
-        diar_result = self.rename_speaker(merged_result)
-        
-        if save_path != None:    # 저장 경로 확인 및 결과 저장
-            os.makedirs(save_path, exist_ok=True)
-            save_file_path = os.path.join(save_path, file_name)
-            with open(save_file_path, "w") as f:
-                json.dump(diar_result, f, indent=4)
-            print(f"Results saved to {save_file_path}")
-        return results
+        # filtered_result = self.filter_speaker_segments(results)
+        # merged_result = self.merge_diarization_segments_with_priority(filtered_result)
+        diar_result = self.rename_speaker(results)
+        return diar_result
 
 class ResultMapper:
     def map_speaker_with_nested_check(self, time_p, stt_result, diar_segments, meeting_id=None, table_editor=None):
