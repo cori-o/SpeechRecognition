@@ -1,10 +1,8 @@
 from pydub.effects import high_pass_filter, low_pass_filter
-from datetime import datetime, timedelta
-from datasets import Dataset
+from pydub.silence import detect_nonsilent
 from pyannote.audio import Pipeline
 from collections import Counter
 from pydub import AudioSegment
-from io import BytesIO
 import pyloudnorm as pyln
 import noisereduce as nr
 import soundfile as sf
@@ -112,6 +110,22 @@ class AudioFileProcessor:
         audio_file = AudioSegment.from_file(m4a_path, format='m4a')
         wav_path = m4a_path.replace('m4a', 'wav')
         audio_file.export(wav_path, format='wav')
+
+    def calculate_nonsilent_start(self, audio_file_path, silence_thresh=-30, min_silence_len=500):
+        """
+        Calculate the start time of the first non-silent portion in an audio file.
+        args:
+            audio_file_path (str): Path to the audio file.
+            silence_thresh (int): Silence threshold in dBFS.
+            min_silence_len (int): Minimum silence length in ms.   
+        returns:
+            float: Start time of the first non-silent portion in seconds.
+        """
+        audio = AudioSegment.from_file(audio_file_path)
+        nonsilent_ranges = detect_nonsilent(audio, min_silence_len=min_silence_len, silence_thresh=silence_thresh)
+        start_time_ms = nonsilent_ranges[0][0] if nonsilent_ranges else 0
+        return start_time_ms / 1000  # Convert ms to seconds
+    
 
 
 class NoiseHandler: 
