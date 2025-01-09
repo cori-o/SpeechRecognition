@@ -342,20 +342,43 @@ class SpeakerDiarizer:
         self.pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token=self.hf_api)
         self.pipeline.to(self.device)
 
-    def rename_speaker(self, result):
+    def rename_speaker(self, result, num_speakers):
         '''
-        화자 분리 결과에서 발화량이 많은 순으로 화자 번호 재부여
-        초과하는 화자의 발화를 제거
+        1. 발화량 기준으로 화자 번호 부여
+        2. 발언 시간이 1초보다 짧은 화자를 뒤로 재배치
         '''
         speaker_counts = Counter(entry['speaker'] for entry in result)
-        print(f'speaker_counts: {speaker_counts}')
-        sorted_speakers = [speaker for speaker, _ in speaker_counts.most_common()]
+        speaker_durations = {}
+        for speaker in speaker_counts:
+            total_time, avg_time = self.calc_speak_duration(result, speaker)
+            speaker_durations[speaker] = {
+                "total_time": total_time,
+                "avg_time": avg_time,
+                "count": speaker_counts[speaker]
+            }
+        print(f'speaker_durations: {speaker_durations}')
+        sorted_speakers = sorted(
+            speaker_durations.keys(),
+            key=lambda spk: speaker_durations[spk]['count'],
+            reverse=True
+        )
         speaker_mapping = {old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(sorted_speakers)}
+        for entry in result:
+            entry['speaker'] = speaker_mapping[entry['speaker']]
+        short_duration_speakers = [
+            spk for spk in sorted_speakers if speaker_durations[spk]['avg_time'] < 3
+        ]
+        long_duration_speakers = [
+            spk for spk in sorted_speakers if speaker_durations[spk]['avg_time'] >= 3
+        ]
+        final_speakers = long_duration_speakers + short_duration_speakers
+        final_speaker_mapping = {old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(final_speakers)}
 
         filtered_result = []
         for entry in result:
-            new_speaker = speaker_mapping[entry['speaker']]
-            entry['speaker'] = new_speaker
+            if int(final_speaker_mapping[entry['speaker']].split('_')[-1]) > num_speakers - 1:
+                continue
+            entry['speaker'] = final_speaker_mapping[entry['speaker']]
             filtered_result.append(entry)
         return filtered_result
     
