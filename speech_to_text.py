@@ -28,8 +28,8 @@ def main(args):
     voice_enhancer = VoiceEnhancer()
     voice_seperator = VoiceSeperator()
 
-    speaker_diarizer = SpeakerDiarizer()
-    speaker_diarizer.set_pyannotate(hf_api_key)
+    #speaker_diarizer = SpeakerDiarizer()
+    #speaker_diarizer.set_pyannotate(hf_api_key)
     stt_module = WhisperSTT(openai_api_key)
     stt_module.set_client()
     stt_module.load_word_dictionary('./config/word_dictionary.json')

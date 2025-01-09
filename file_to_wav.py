@@ -6,7 +6,7 @@ def main(args):
     audio_fp = AudioFileProcessor()
     wav_file_name = args.file_name.split('.')[0] + '.wav'
     file_path = os.path.join(args.data_path, args.file_name)
-    audio_fp.file_to_wav(file_path, os.path.join(args.output_path, wav_file_name), args.file_type)
+    audio_fp.m4a_to_wav(file_path)
 
 
 if __name__ == '__main__':

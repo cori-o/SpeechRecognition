@@ -70,18 +70,18 @@ class WhisperSTT(STTModule):
         start_time_ms = nonsilent_ranges[0][0] if nonsilent_ranges else 0
         return start_time_ms / 1000  # Convert ms to seconds
     
-    def map_speaker_with_nested_check(self, diar_segments, stt_segment):
+    def map_speaker_with_nested_check(self, time_p, diar_segments, stt_result):
         """STT 구간과 Diarization 구간 비교 후, 중첩된 구간 확인"""
-        stt_start, stt_end = stt_segment['start_time'], stt_segment['end_time']
+        stt_start, stt_end = stt_result['start_time'], stt_result['end_time']
         stt_duration = stt_end - stt_start
-        print(f'stt_segment: {stt_segment}')
         candidates = []
 
         for diar_seg in diar_segments:   # STT 결과값과 겹치는 Diar 구간 탐색 
             diar_start, diar_end = diar_seg['start'], diar_seg['end']
             if stt_start <= diar_end and stt_end >= diar_start:  # 겹침 조건
-                candidates.append(diar_seg)
+                candidates.append(diar_seg)                
         print(f'candidate: {candidates}')
+
         for candidate in candidates:
             diar_start, diar_end = candidate['start'], candidate['end']
             nested_segments = [  #  Diar 구간 내에 또 다른 구간 탐색 (0~19 -> 13~14)
@@ -89,13 +89,10 @@ class WhisperSTT(STTModule):
                 if seg['start'] >= diar_start and seg['end'] <= diar_end and seg != candidate
             ]
             if nested_segments:   # 또 다른 발화가 있을 때 
-                # print(f'nested_seg: {nested_segments}')
                 for nested in nested_segments:
-                    if is_similar(nested, stt_segment):
-                        print('true')
-                        stt_segment['speaker'] = nested['speaker']
-                        return stt_segment
-            # 또 다른 발화가 없을 때
+                    if time_p.is_similar(nested, stt_segment):
+                        stt_result['speaker'] = nested['speaker']
+                        return stt_result
             max_overlap = 0
             best_speaker = 'Unknown'
             for diar_seg in candidates:
@@ -106,8 +103,49 @@ class WhisperSTT(STTModule):
                     max_overlap = overlap_duration
                     best_speaker = diar_seg['speaker']
                     print(f'best_speaker: {best_speaker}')
-            stt_segment['speaker'] = best_speaker
-            return stt_segment
+            stt_result['speaker'] = best_speaker
+            return stt_result
+
+    def process_segments_with_whisper(self, audio_p, audio_file, diar_results, db_stt_result_path, meeting_id, table_editor, openai_client):
+        """
+        화자 구간을 나눠 Whisper API에 바로 전달하여 텍스트 변환
+        args:
+            audio_file (str): 입력 오디오 파일 경로
+            segments (List[Tuple[float, float, str]]): (시작 시간, 종료 시간, 화자) 세그먼트
+        """
+        if isinstance(audio_file, AudioSegment):
+            whisper_audio = audio_file.set_frame_rate(16000).set_channels(1).set_sample_width(2)
+            audio_buffer = io.BytesIO()
+            whisper_audio.export(audio_buffer, format="wav")
+            audio_buffer.seek(0)
+            audio_file = audio_buffer
+        elif isinstance(audio_file, io.BytesIO):
+            audio_file = audio_p.bytesio_to_tempfile(audio_file)
+        
+        exclude_word = ['뉴스', '구독', '시청']
+        pattern = r'(^|\s|[^가-힣a-zA-Z0-9])(' + '|'.join(map(re.escape, exclude_word)) + r')($|\s|[^가-힣a-zA-Z0-9])'
+        now = datetime.now()
+        results = []
+        audio = AudioSegment.from_file(audio_file)
+        for idx, diar_result in enumerate(diar_results):
+            diar_duration = diar_result['end'] - diar_result['start']
+            start_time = now + timedelta(seconds=diar_result['start'])
+            end_time = now + timedelta(seconds=diar_result['end'])
+            if diar_duration < 0.1:
+                print(f"Skipping segment {idx}: Duration too short ({diar_duration:.2f}s)")
+                continue
+            if diar_duration < 2:
+                try:
+                    start_ms = int(diar_result['start'] * 1000) - 1
+                    end_ms = int(diar_result['end'] * 1000) + 1
+                except:
+                    start_ms = int(diar_result['start'] * 1000)
+                    end_ms = int(diar_result['end'] * 1000)
+            else:
+                start_ms = int(diar_result['start'] * 1000)
+                end_ms = int(diar_result['end'] * 1000)
+            segment_audio = audio[start_ms:end_ms]
+
 
     def transcribe_text(self, audio_p, audio_file):
         if isinstance(audio_file, AudioSegment):
@@ -119,10 +157,9 @@ class WhisperSTT(STTModule):
         elif isinstance(audio_file, io.BytesIO):
             audio_file = audio_p.bytesio_to_tempfile(audio_file)
         
-        # nonsilent_s = self.calculate_nonsilent_start(audio_file)
         audio = AudioSegment.from_file(audio_file)  # 컨텍스트 매니저 제거
         whisper_audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-        # self.load_word_dictionary(os.path.join('./config', 'word_dict.json'))
+        self.load_word_dictionary(os.path.join('./config', 'word_dict.json'))
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
             whisper_audio.export(temp_audio_file.name, format="wav")
             with open(temp_audio_file.name, "rb") as audio_file:
