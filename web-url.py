@@ -76,21 +76,21 @@ def run_python_code():
     global stt_module
     global openai_client
     global table_editor
-    global new_file_name     # /ibk/meeting_records/ibk-poc-meeting1.wav
-    global audio_file_name     # ibk-poc-meeting1.wav
-    global diar_result_path      # /ibk/meeting_records/stt_result/ibk-poc-meeting1.json
+    global new_file_name     # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
+    global audio_file_name     # meeting_302_2025-01-09-16-25-30.wav
+    global diar_result_path      # /ibk/meeting_records/stt_result/meeting_302_2025-01-09-16-25-30.json
     
     load_dotenv()
     data = request.get_json()
     pyannot_api_key = os.getenv('PA_API')
     
-    file_name = data['file_name']     # /jsh0630/meeting_records/ibk-poc-meeting1.wav
+    file_name = data['file_name']     # /jsh0630/meeting_records/meeting_302_2025-01-09-16-25-30.wav
     participant_cnt = data['participant']
 
     file_path = '/ibk/meeting_records/'
     diar_result_path = '/ibk/meeting_records/diar_result/'
-    new_file_name = file_path + file_name.split('/')[-1]    # ibk-poc-meeting1.wav 
-    audio_file_name = new_file_name.split('/')[-1]   # /ibk/meeting_records/ibk-poc-meeting1.wav
+    new_file_name = file_path + file_name.split('/')[-1]    # meeting_302_2025-01-09-16-25-30.wav
+    audio_file_name = new_file_name.split('/')[-1]   # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
 
     pyannotate_url = "https://api.pyannote.ai/v1/diarize"
     file_url = f"https://ibkpoc.fingerservice.co.kr/stt/?audio_file_name={audio_file_name}"
@@ -111,12 +111,12 @@ def run_python_code():
 @app.post('/run-stt')
 def run_stt_code():
     data = request.get_json()
-    file_name = data['file_name']     # /jsh0630/meeting_records/ibk-poc-meeting1.wav
+    file_name = data['file_name']     # /jsh0630/meeting_records/meeting_302_2025-01-09-16-25-30.wav
 
     file_path = '/ibk/meeting_records/'
-    new_file_name = file_path + file_name.split('/')[-1]    # ibk-poc-meeting1.wav 
-    audio_file_name = new_file_name.split('/')[-1]   # /ibk/meeting_records/ibk-poc-meeting1.wav
-    meeting_id = int(new_file_name.split('_')[1])   
+    new_file_name = file_path + file_name.split('/')[-1]    # meeting_302_2025-01-09-16-25-30.wav
+    audio_file_name = new_file_name.split('/')[-1]   # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
+    meeting_id = int(new_file_name.split('/')[-1].split('_')[1])   
     print(f'meeting ID: {meeting_id}')
     chunk_length = 270
     audio_chunk = audio_p.audio_chunk(audio_file_name, chunk_length=chunk_length)   # 270 sec 

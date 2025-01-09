@@ -26,7 +26,7 @@ class DBConnection(DB):
     def close(self):
         self.cur.close()
         self.conn.close()
-        
+
 class PostgresDB:
     '''
     데이터베이스 CRUD (Create, Read, Update, Delete) 작업에 사용되는 클래스
@@ -100,28 +100,12 @@ class TableEditor:
         elif task == 'update':
             pass
 
-    def edit_poc_conf_tb(self, task, table_name, data_type=None, data=None, col=None, val=None):
+    def edit_poc_conf_tb(self, task, table_name, data=None):
         if task == 'insert':
-            if data_type=='table':
-                for idx in range(len(data)):
-                    self.db_connection.cur.execute(
-                        f"""INSERT INTO {table_name} (title, start_time, end_time, created_by, is_active, participant_count, received_count, summary, topic) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                        (data['title'][idx], data['start_time'][idx], data['end_time'][idx], data['created_by'][idx],
-                        data['is_active'][idx], data['participant_count'][idx], data['received_count'][idx], data['summary'][idx], data['topic'][idx])
-                    )
-                self.db_connection.conn.commit()
-            elif data_type=='raw':
-                self.db_connection.cur.execute(
-                    f"""
-                    INSERT INTO {table_name} (title, start_time, end_time, created_by, is_active, participant_count, received_count, summary, topic) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                    tuple(data)
-                )
-                self.db_connection.conn.commit()
+            pass
         elif task == 'delete':
             pass 
-        elif task == 'update':
+        elif task == 'update':   # data  - conf_id 
             self.db_connection.cur.execute(
                     f"""
                     UPDATE {table_name}
@@ -131,8 +115,8 @@ class TableEditor:
             )
             self.db_connection.conn.commit()
     
-    def edit_poc_conf_log_tb(self, task, table_name, data=None, val=None):   # data - meeting     
-        if task == 'insert':
+    def edit_poc_conf_log_tb(self, task, table_name, data=None, val=None):     
+        if task == 'insert':    # data - meeting_id, val: (start time, end time, content)
             self.db_connection.cur.execute(
                f"""INSERT INTO {table_name} (start_time, end_time, content, conf_id) VALUES (%s, %s, %s, %s)""",
                (val[0], val[1], val[2], data)
@@ -140,15 +124,15 @@ class TableEditor:
             self.db_connection.conn.commit()
         elif task == 'delete':
             pass 
-        elif task == 'update':   # data: meeting_id
+        elif task == 'update':   # data: meeting_id, val: (conv_id, speaker_id - SPEAKER_00)
             self.db_connection.cur.execute(
                 f"""SELECT cuser_id FROM ibk_poc_conf_user WHERE conf_id=%s and speaker_id=%s""",
-                (data, val[2])
+                (data, val[1])
             )
             cuser_result = self.db_connection.cur.fetchone()
             self.db_connection.cur.execute(
                 f"""UPDATE {table_name} 
-                    SET c_user = %s
+                    SET cuser_id = %s
                     WHERE conf_id = %s""",
                     (cuser_result, data)
             )
