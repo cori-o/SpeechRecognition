@@ -80,6 +80,7 @@ class WhisperSTT(STTModule):
                 )
         segments = transcription.segments
         print(f'trans result: {transcription.segments}')   # id, avg_logprob, compression_ratio, end, no_speech_prob, seek, start, temperature (0.0), text, tokens
+        previous_text = None 
         if meeting_id == None:
             results = []
             for segment in segments:
@@ -100,6 +101,10 @@ class WhisperSTT(STTModule):
                 if segment.temperature > 0.8:
                     continue
                 if segment.no_speech_prob < 0.9 and segment.avg_logprob > -2.0:
+                    if segment.text == previous_text:
+                        continue
+                    previous_text = segment.text
+                    
                     modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
                     segment.start += chunk_offset 
                     segment.end += chunk_offset
