@@ -12,7 +12,6 @@ import tempfile
 import librosa
 import torch
 import wave
-import json
 import io
 import os
 
@@ -21,10 +20,11 @@ class TimeProcessor:
     def is_similar(self, diar_seg, stt_result):
         '''
         두 세그먼트 간 겹치는 길이와 발화 시간이 유사한지 검사
+        stt_result: (conv_id, content, start, end, cuser_id, conf_id)
         '''
         TIME_TOLERANCE = 1.5   # 허용 오차(초)
         diar_start, diar_end = diar_seg['start'], diar_seg['end']
-        stt_start, stt_end = stt_result['start_time'], stt_result['end_time']
+        stt_start, stt_end = stt_result[2], stt_result[3]
 
         diar_duration = diar_end - diar_start
         stt_duration = stt_end - stt_start
@@ -124,7 +124,6 @@ class AudioFileProcessor:
         start_time_ms = nonsilent_ranges[0][0] if nonsilent_ranges else 0
         return start_time_ms / 1000  # Convert ms to seconds
     
-
 
 class NoiseHandler: 
     '''

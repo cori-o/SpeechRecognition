@@ -3,6 +3,7 @@ from pydub import AudioSegment
 from openai import OpenAI
 import tempfile
 import json
+import time 
 import io
 import os
 import re
@@ -91,10 +92,13 @@ class WhisperSTT(STTModule):
                         'prob': segment.no_speech_prob,
                         'avg_logprob': segment.avg_logprob
                     })
+                    time.sleep(2)
             filtered_results = self.filter_stt_result(results)
             return filtered_results
         else:
             for segment in segments:
+                if segment.temperature > 0.8:
+                    continue
                 if segment.no_speech_prob < 0.9 and segment.avg_logprob > -2.0:
                     modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
                     segment.start += chunk_offset 

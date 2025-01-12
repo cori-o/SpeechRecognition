@@ -20,12 +20,9 @@ def main(args):
     openai_client = OpenAI(api_key=openai_api_key)
 
     audio_p = AudioFileProcessor()
-
-    # speaker_diarizer = SpeakerDiarizer()
-    # speaker_diarizer.set_pyannotate(hf_api_key)
     stt_module = WhisperSTT(openai_api_key)
     stt_module.set_client()
-    stt_module.load_word_dictionary('./config/word_dictionary.json')
+    stt_module.load_word_dictionary('./config/word_dict.json')
 
     start = time.time()
     if args.chunk_length == None:
@@ -38,7 +35,7 @@ def main(args):
         audio_chunk = audio_p.audio_chunk(audio_file_path, chunk_length=args.chunk_length)
         for idx, chunk in enumerate(audio_chunk):
             cstt_file_name = os.path.join(args.output_path, f"cstt_{idx}.json")
-            chunk_offset = idx * args.chunk_length   # 청크의 시작 시간 오프셋 계산
+            chunk_offset = idx * args.chunk_length     # 청크의 시작 시간 오프셋 계산
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
                 chunk.export(temp_audio_file.name, format="wav")
                 temp_audio_path = temp_audio_file.name
