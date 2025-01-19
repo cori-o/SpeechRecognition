@@ -43,7 +43,7 @@ class WhisperSTT(STTModule):
         for incorrect_word, correct_word in word_dict.items():
             stt_text = re.sub(rf'\b{re.escape(incorrect_word)}\b', correct_word, stt_text)
         return stt_text
-    
+     
     def filter_stt_result(self, results):
         filtered_results = []
         prev_text = None
@@ -104,7 +104,7 @@ class WhisperSTT(STTModule):
                     if segment.text == previous_text:
                         continue
                     previous_text = segment.text
-                    
+
                     modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
                     segment.start += chunk_offset 
                     segment.end += chunk_offset
