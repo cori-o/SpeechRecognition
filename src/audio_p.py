@@ -15,6 +15,15 @@ import wave
 import io
 import os
 
+class DataProcessor:
+    def flatt_list(self, nested_list):
+        flat_list = []
+        for item in nested_list:
+            if isinstance(item, list):  # 리스트 내부의 리스트 처리
+                flat_list.extend(self.flatt_list(item))
+            else:
+                flat_list.append(item)
+        return flat_list
 
 class TimeProcessor:
     def is_similar(self, diar_seg, stt_result):
