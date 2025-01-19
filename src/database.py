@@ -130,10 +130,11 @@ class TableEditor:
                 (data, val[1])
             )
             cuser_result = self.db_connection.cur.fetchone()
+            # print(f'speaker_id: {speaker_id}, cuser: {cuser_result}')
             self.db_connection.cur.execute(
                 f"""UPDATE {table_name} 
                     SET cuser_id = %s
-                    WHERE conf_id = %s""",
-                    (cuser_result, data)
+                    WHERE conf_id = %s AND conv_id = %s""",
+                    (cuser_result, data, val[0])
             )
             self.db_connection.conn.commit()
