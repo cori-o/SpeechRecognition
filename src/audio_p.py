@@ -361,10 +361,11 @@ class SpeakerDiarizer:
         self.pipeline.to(self.device)
 
     def rename_speaker(self, result, num_speakers):
-        '''
-        1. 발화량 기준으로 화자 번호 부여
-        2. 발언 시간이 1초보다 짧은 화자를 뒤로 재배치
-        '''
+        """
+        화자 재정렬 및 번호 재매핑:
+        1. 발화량 기준으로 화자 번호 부여.
+        2. 평균 발화 시간이 짧은 화자는 뒤로 배치.
+        """
         speaker_counts = Counter(entry['speaker'] for entry in result)
         speaker_durations = {}
         for speaker in speaker_counts:
@@ -374,29 +375,35 @@ class SpeakerDiarizer:
                 "avg_time": avg_time,
                 "count": speaker_counts[speaker]
             }
-        print(f'speaker_durations: {speaker_durations}')
+        print(f"Speaker Durations: {speaker_durations}")
         sorted_speakers = sorted(
-            speaker_durations.keys(),
-            key=lambda spk: speaker_durations[spk]['count'],
-            reverse=True
+        speaker_durations.keys(),
+            key=lambda spk: (
+                -speaker_durations[spk]['total_time'],  # 총 발화 시간 내림차순
+                -speaker_durations[spk]['avg_time'],    # 평균 발화 시간 내림차순
+                -speaker_durations[spk]['count']       # 발화 수 내림차순
+            )
         )
-        speaker_mapping = {old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(sorted_speakers)}
-        for entry in result:
-            entry['speaker'] = speaker_mapping[entry['speaker']]
-        short_duration_speakers = [
-            spk for spk in sorted_speakers if speaker_durations[spk]['avg_time'] < 3
-        ]
         long_duration_speakers = [
             spk for spk in sorted_speakers if speaker_durations[spk]['avg_time'] >= 3
         ]
-        final_speakers = long_duration_speakers + short_duration_speakers
-        final_speaker_mapping = {old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(final_speakers)}
+        short_duration_speakers = [
+            spk for spk in sorted_speakers if speaker_durations[spk]['avg_time'] < 3
+        ]   
+        final_speakers = long_duration_speakers + short_duration_speakers   # 평균 발화 시간이 짧은 화자를 뒤로 배치 
+        print(f"Final Speakers Order: {final_speakers}")
 
+        final_speaker_mapping = {
+            old_speaker: f"SPEAKER_{i:02d}" for i, old_speaker in enumerate(final_speakers)
+        }
         filtered_result = []
         for entry in result:
-            if int(final_speaker_mapping[entry['speaker']].split('_')[-1]) > num_speakers - 1:
+            if entry['speaker'] not in final_speaker_mapping:
                 continue
-            entry['speaker'] = final_speaker_mapping[entry['speaker']]
+            mapped_speaker = final_speaker_mapping[entry['speaker']]
+            if int(mapped_speaker.split('_')[-1]) >= num_speakers:
+                continue
+            entry['speaker'] = mapped_speaker
             filtered_result.append(entry)
         return filtered_result
     
