@@ -536,34 +536,3 @@ class ResultMapper:
             updated_result = (conv_id, best_speaker)
             table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)
             return 
-
-class ETC:
-    '''
-    당장 쓰이지 않는 메서드 정의
-    '''
-    def get_model_response(self, df, user_id, query):
-        qa_pairs = []
-        current_question = None
-        question_time = None
-
-        user_df = df[df['user_id'] == user_id].reset_index(drop=True)
-        user_df = user_df.sort_values('date')
-        # user_df.to_csv('./debug_user.csv', index=False)
-        
-        for i, row in user_df.iterrows():   # 질문-응답 매칭 루프
-            if row['q/a'] == 'Q' and row['content'] == query:
-                current_question = row['content']
-                question_time = row['date']
-            elif row['q/a'] == 'A' and current_question is not None:
-                response_time = row['date']   # 질문에 대한 응답을 기록
-                time_diff = response_time - question_time   # 시간 차이가 많이 나지 않는 경우에만 질문과 응답을 매칭
-                if time_diff.seconds < 300:  # 5분 이내
-                    qa_pairs.append({
-                        'question': current_question,
-                        'answer': row['content'],
-                        'question_time': question_time,
-                        'answer_time': response_time
-                    })
-                current_question = None   # 응답 처리 후 질문 초기화
-                question_time = None
-        return qa_pairs
