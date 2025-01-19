@@ -1,15 +1,23 @@
 from flask import Flask, send_file, request, jsonify, Response
-from src import SpeakerDiarizer, AudioFileProcessor, TimeProcessor, WhisperSTT, ResultMapper
+from src import NoiseHandler, SpeakerDiarizer, AudioFileProcessor, TimeProcessor, WhisperSTT, ResultMapper
 from src import DBConnection, TableEditor, PostgresDB
 from src import LLMOpenAI
 from dotenv import load_dotenv
 import requests
-import time 
+import time
+import logging
 import tempfile
 import json
 import os
 
 app = Flask(__name__)    
+
+logger = logging.getLogger('stt_logger')
+logger.setLevel(logging.INFO)
+file_handler = logging.FileHandler('stt-result.log')
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
 
 load_dotenv()
 openai_api_key = os.getenv('OPENAI_API')
@@ -26,6 +34,7 @@ table_editor = TableEditor(db_conn)
 
 diar_module = SpeakerDiarizer()
 audio_p = AudioFileProcessor()
+noise_handler = NoiseHandler()
 time_p = TimeProcessor()
 
 stt_module = WhisperSTT(openai_api_key)
