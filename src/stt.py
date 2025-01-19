@@ -8,6 +8,7 @@ import io
 import os
 import re
 
+
 class STTModule:
     def __init__(self, openai_api_key=None, ms_api=None):
         self.openai_api_key = openai_api_key
@@ -43,7 +44,7 @@ class WhisperSTT(STTModule):
         for incorrect_word, correct_word in word_dict.items():
             stt_text = re.sub(rf'\b{re.escape(incorrect_word)}\b', correct_word, stt_text)
         return stt_text
-     
+    
     def filter_stt_result(self, results):
         filtered_results = []
         prev_text = None
@@ -55,7 +56,7 @@ class WhisperSTT(STTModule):
             filtered_results.append(segment)
         return filtered_results
 
-    def transcribe_text(self, audio_p, audio_file, meeting_id=None, table_editor=None, chunk_offset=None):
+    def transcribe_text(self, audio_p, audio_file, logger=None, meeting_id=None, table_editor=None, chunk_offset=None):
         if isinstance(audio_file, AudioSegment):
             whisper_audio = audio_file.set_frame_rate(16000).set_channels(1).set_sample_width(2)
             audio_buffer = io.BytesIO()
@@ -81,33 +82,31 @@ class WhisperSTT(STTModule):
         segments = transcription.segments
         print(f'trans result: {transcription.segments}')   # id, avg_logprob, compression_ratio, end, no_speech_prob, seek, start, temperature (0.0), text, tokens
         previous_text = None 
-        if meeting_id == None:
-            results = []
-            for segment in segments:
-                if segment.no_speech_prob < 0.9 and segment.avg_logprob > -2.0:
-                    modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
-                    results.append({
-                        "start_time": segment.start,
-                        "end_time": segment.end, 
-                        'text': modified_text.strip(),
-                        'prob': segment.no_speech_prob,
-                        'avg_logprob': segment.avg_logprob
-                    })
-                    time.sleep(2)
-            filtered_results = self.filter_stt_result(results)
-            return filtered_results
-        else:
-            for segment in segments:
-                if segment.temperature > 0.8:
+        logs = []
+        for segment in segments:
+            if segment.temperature > 0.1:
+                continue
+            if segment.no_speech_prob < 0.9 and segment.avg_logprob > -2.0:
+                if segment.text == previous_text:
                     continue
-                if segment.no_speech_prob < 0.9 and segment.avg_logprob > -2.0:
-                    if segment.text == previous_text:
-                        continue
-                    previous_text = segment.text
-
-                    modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
-                    segment.start += chunk_offset 
-                    segment.end += chunk_offset
-                    stt_result = (segment.start, segment.end, segment.text)
+                previous_text = segment.text
+                modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
+                segment.start += chunk_offset 
+                segment.end += chunk_offset
+                    
+                stt_result = (segment.start, segment.end, modified_text.strip())
+                if table_editor != None:
                     table_editor.edit_poc_conf_log_tb(task='insert', table_name='ibk_poc_conf_log', data=meeting_id, val=stt_result)
-            return
+                stt_log = {
+                    "start_time": segment.start, 
+                    "end_time": segment.end, 
+                    "text": modified_text.strip(),
+                    "prob": segment.no_speech_prob,
+                    "seek": segment.seek,
+                    "temperature": segment.temperature,
+                    "avg_logprob": segment.avg_logprob
+                }
+                logger.info(stt_log)
+                time.sleep(2) 
+                logs.append(stt_log)
+        return logs
