@@ -82,10 +82,6 @@ def run_python_code():
     global participant_cnt 
     global file_path    # /ibk/meeting_records
     global audio_p
-    global diar_module 
-    global stt_module
-    global openai_client
-    global table_editor
     global new_file_name     # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
     global audio_file_name     # meeting_302_2025-01-09-16-25-30.wav
     global diar_result_path      # /ibk/meeting_records/stt_result/meeting_302_2025-01-09-16-25-30.json
