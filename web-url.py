@@ -125,14 +125,17 @@ def run_stt_code():
     meeting_id = int(audio_file_name.split('_')[1])
     print(f'meeting ID: {meeting_id}')
     chunk_length = 270
+    # filtered_audio = noise_handler.filter_audio_with_ffmpeg(new_file_name, high_cutoff=100, low_cutoff=3500)
+    # audio_chunk = audio_p.audio_chunk(filtered_audio, chunk_length=chunk_length)
     audio_chunk = audio_p.audio_chunk(new_file_name, chunk_length=chunk_length)   # 270 sec 
+    
     for idx, chunk in enumerate(audio_chunk):
         chunk_offset = idx * chunk_length   # 청크의 시작 시간 오프셋 계산
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
             chunk.export(temp_audio_file.name, format="wav")
             temp_audio_path = temp_audio_file.name
-        stt_module.transcribe_text(audio_p, temp_audio_path, meeting_id, table_editor, chunk_offset)
-        if idx == 0:
+        stt_module.transcribe_text(audio_p, temp_audio_path, logger=logger, meeting_id=meeting_id, table_editor=table_editor, chunk_offset=chunk_offset)
+        if idx == len(audio_chunk) - 1:
             table_editor.edit_poc_conf_tb(task='update', table_name='ibk_poc_conf', data=meeting_id)
     return jsonify({"status": "received"}), 200
 
