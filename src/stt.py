@@ -84,9 +84,10 @@ class WhisperSTT(STTModule):
         previous_text = None 
         logs = []
         for segment in segments:
+            segment.text = segment.text.strip()
             if segment.temperature > 0.1:
                 continue
-            if segment.no_speech_prob < 0.9 and segment.avg_logprob > -2.0:
+            if segment.no_speech_prob < 0.5 and segment.avg_logprob > -2.0:
                 if segment.text == previous_text:
                     continue
                 previous_text = segment.text
@@ -94,13 +95,13 @@ class WhisperSTT(STTModule):
                 segment.start += chunk_offset 
                 segment.end += chunk_offset
                     
-                stt_result = (segment.start, segment.end, modified_text.strip())
+                stt_result = (segment.start, segment.end, modified_text)
                 if table_editor != None:
                     table_editor.edit_poc_conf_log_tb(task='insert', table_name='ibk_poc_conf_log', data=meeting_id, val=stt_result)
                 stt_log = {
                     "start_time": segment.start, 
                     "end_time": segment.end, 
-                    "text": modified_text.strip(),
+                    "text": modified_text,
                     "prob": segment.no_speech_prob,
                     "seek": segment.seek,
                     "temperature": segment.temperature,
