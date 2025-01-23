@@ -77,7 +77,8 @@ class WhisperSTT(STTModule):
                     file=audio_file,
                     language='ko',
                     response_format="verbose_json",
-                    #timestamp_granularities=["segment"]
+                    #timestamp_granularities=["segment"],
+                    prompt="The sentence may be cut off. do not make up words to fill in the rest of the sentence." 
                 )
         segments = transcription.segments
         print(f'trans result: {transcription.segments}')   # id, avg_logprob, compression_ratio, end, no_speech_prob, seek, start, temperature (0.0), text, tokens
