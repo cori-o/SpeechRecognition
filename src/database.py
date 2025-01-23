@@ -108,7 +108,11 @@ class TableEditor:
                 )
                 self.db_connection.conn.commit()
         elif task == 'delete':
-            pass 
+            self.db_connection.cur.execute(
+                    f"""DELETE FROM {table_name} WHERE conf_id = %s""",
+                    (data, )
+            )
+            self.db_connection.conn.commit()
         elif task == 'update':
             pass
 
@@ -116,7 +120,11 @@ class TableEditor:
         if task == 'insert':
             pass
         elif task == 'delete':
-            pass 
+            self.db_connection.cur.execute(
+                f"""DELETE FROM {table_name} WHERE conf_id = %s""",
+                (data, )
+            )
+            self.db_connection.conn.commit()
         elif task == 'update':   # data  - conf_id 
             self.db_connection.cur.execute(
                     f"""
@@ -130,12 +138,21 @@ class TableEditor:
     def edit_poc_conf_log_tb(self, task, table_name, data=None, val=None):     
         if task == 'insert':    # data - meeting_id, val: (start time, end time, content)
             self.db_connection.cur.execute(
-               f"""INSERT INTO {table_name} (start_time, end_time, content, conf_id) VALUES (%s, %s, %s, %s)""",
-               (val[0], val[1], val[2], data)
+                f"""SELECT cuser_id FROM ibk_poc_conf_user WHERE conf_id=%s and speaker_id=%s""",
+                (data, val[3])
+            )
+            cuser_result = self.db_connection.cur.fetchone()
+            self.db_connection.cur.execute(
+               f"""INSERT INTO {table_name} (start_time, end_time, content, cuser_id, conf_id) VALUES (%s, %s, %s, %s, %s)""",
+               (val[0], val[1], val[2], cuser_result, data)
             )
             self.db_connection.conn.commit()
         elif task == 'delete':
-            pass 
+            self.db_connection.cur.execute(
+                f"""DELETE FROM {table_name} WHERE conf_id = %s""",
+                (data, )
+            )
+            self.db_connection.conn.commit()
         elif task == 'update':   # data: meeting_id, val: (conv_id, speaker_id - SPEAKER_00)
             self.db_connection.cur.execute(
                 f"""SELECT cuser_id FROM ibk_poc_conf_user WHERE conf_id=%s and speaker_id=%s""",
