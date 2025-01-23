@@ -135,7 +135,7 @@ def run_stt_code():
             chunk.export(temp_audio_file.name, format="wav")
             temp_audio_path = temp_audio_file.name
         stt_module.transcribe_text(audio_p, temp_audio_path, logger=logger, meeting_id=meeting_id, table_editor=table_editor, chunk_offset=chunk_offset)
-        if idx == len(audio_chunk) - 1:
+        if idx == 0:
             table_editor.edit_poc_conf_tb(task='update', table_name='ibk_poc_conf', data=meeting_id)
     return jsonify({"status": "received"}), 200
 
