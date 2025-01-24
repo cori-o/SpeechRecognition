@@ -134,6 +134,14 @@ class TableEditor:
                     (data, )
             )
             self.db_connection.conn.commit()
+
+    def get_unknown_id(self, conf_id, val='UNKNOWN'):
+        self.db_connection.cur.execute(
+            f"""SELECT cuser_id FROM ibk_poc_conf_user WHERE conf_id=%s and speaker_id=%s""",
+            (conf_id, val)
+        )
+        cuser_result = self.db_connection.cur.fetchone()
+        return cuser_result
     
     def edit_poc_conf_log_tb(self, task, table_name, data=None, val=None):     
         if task == 'insert':    # data - meeting_id, val: (start time, end time, content)
@@ -167,3 +175,12 @@ class TableEditor:
                     (cuser_result, data, val[0])
             )
             self.db_connection.conn.commit()
+
+    def bulk_insert(self, table_name, columns, values):
+        print(f'table_name: {table_name}, columns: {columns}, values: {values}')
+        columns_str = ', '.join(columns)
+        placeholders = ', '.join(['%s'] * len(columns))
+        query = f"INSERT INTO {table_name} ({columns_str}) VALUES ({placeholders})"
+        
+        self.db_connection.cur.executemany(query, values)
+        self.db_connection.conn.commit()
