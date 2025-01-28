@@ -73,7 +73,7 @@ class WhisperSTT(STTModule):
         
         audio = AudioSegment.from_file(audio_file)     # 컨텍스트 매니저 제거
         whisper_audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-        
+        self.load_word_dictionary(os.path.join('./config', 'word_dict.json'))
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
             whisper_audio.export(temp_audio_file.name, format="wav")
             with open(temp_audio_file.name, "rb") as audio_file:
@@ -86,9 +86,12 @@ class WhisperSTT(STTModule):
                     prompt="The sentence may be cut off. do not make up words to fill in the rest of the sentence." 
                 )
         segments = transcription.segments
-        print(f'trans result: {transcription.segments}')   # id, avg_logprob, compression_ratio, end, no_speech_prob, seek, start, temperature (0.0), text, tokens
+        # print(f'trans result: {transcription.segments}')   # id, avg_logprob, compression_ratio, end, no_speech_prob, seek, start, temperature (0.0), text, tokens
+        logger.info(f'start: {transcription.segments}')
         previous_text = None 
         logs = []
+        stt_results = []
+        cuser_id = table_editor.get_unknown_id(meeting_id, 'UNKNOWN')
         for segment in segments:
             segment.text = segment.text.strip()
             stt_log = {
@@ -100,20 +103,29 @@ class WhisperSTT(STTModule):
                 "temperature": segment.temperature,
                 "avg_logprob": segment.avg_logprob
             }
-            logger.info(stt_log)
+            # logger.info(stt_log)
             time.sleep(2)
             logs.append(stt_log)
             if segment.temperature > 0.1:
                 continue
-            if segment.no_speech_prob < 0.75 and segment.avg_logprob > -2.0:
+            if segment.no_speech_prob < 0.81 and segment.avg_logprob > -2.0:
                 if segment.text == previous_text:
                     continue
                 previous_text = segment.text
                 modified_text = self.apply_word_dictionary(segment.text, self.word_dict)
                 segment.start += chunk_offset 
-                segment.end += chunk_offset
-                    
-                stt_result = (segment.start, segment.end, modified_text, 'UNKNOWN')
-                if table_editor != None:
-                    table_editor.edit_poc_conf_log_tb(task='insert', table_name='ibk_poc_conf_log', data=meeting_id, val=stt_result)
+                segment.end += chunk_offset                    
+                stt_results.append((
+                    segment.start,
+                    segment.end, 
+                    modified_text, 
+                    cuser_id,
+                    meeting_id
+                ))
+        logger.info(f'end: {transcription.segments}')
+        table_editor.bulk_insert(
+            table_name='ibk_poc_conf_log',
+            columns=['start_time', 'end_time', 'content', 'cuser_id', 'conf_id'],
+            values = stt_results
+        )
         return logs
