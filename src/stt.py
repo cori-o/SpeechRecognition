@@ -104,7 +104,6 @@ class WhisperSTT(STTModule):
                 "avg_logprob": segment.avg_logprob
             }
             # logger.info(stt_log)
-            time.sleep(2)
             logs.append(stt_log)
             if segment.temperature > 0.1:
                 continue
