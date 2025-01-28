@@ -26,6 +26,7 @@ class STTModule:
 class WhisperSTT(STTModule):
     def __init__(self, openai_api_key):
         super().__init__(openai_api_key=openai_api_key)
+        self.load_word_dictionary(os.path.join('./config', 'word_dict.json'))
     
     def set_client(self):
         self.openai_client = OpenAI(api_key=self.openai_api_key)
@@ -37,7 +38,11 @@ class WhisperSTT(STTModule):
     
     def apply_word_dictionary(self, stt_text, word_dict):
         for incorrect_word, correct_word in word_dict.items():
-            stt_text = stt_text.replace(incorrect_word, correct_word)
+            # print(f'incorrect: {incorrect_word}, correct: {correct_word}')
+            try:
+                stt_text = stt_text.replace(incorrect_word, correct_word)
+            except:
+                continue
         return stt_text
     
     def apply_word_dictionary_regex(self, stt_text, word_dict):
@@ -68,7 +73,7 @@ class WhisperSTT(STTModule):
         
         audio = AudioSegment.from_file(audio_file)     # 컨텍스트 매니저 제거
         whisper_audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-        self.load_word_dictionary(os.path.join('./config', 'word_dict.json'))
+        
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio_file:
             whisper_audio.export(temp_audio_file.name, format="wav")
             with open(temp_audio_file.name, "rb") as audio_file:
