@@ -34,7 +34,7 @@ def main(args):
     model_id = "openai/whisper-large-v3"
     result = stt_module.transcribe_text(model_id, audio_file_path)
     # print(result)
-     with open(os.path.join('./meeting_records', 'stt', stt_file_name), "w", encoding="utf-8") as output_file:
+    with open(os.path.join('./meeting_records', 'stt', stt_file_name), "w", encoding="utf-8") as output_file:
         json.dump(result, output_file, ensure_ascii=False, indent=4)
     
 
