@@ -13,6 +13,7 @@ import librosa
 import torch
 import wave
 import io
+import re
 import os
 
 class DataProcessor:
@@ -24,6 +25,30 @@ class DataProcessor:
             else:
                 flat_list.append(item)
         return flat_list
+    
+    def cleanse_text(self, text):
+        '''
+        특수문자("'@) 및 문장 맨 끝 마침표 제거
+        '''
+        if not isinstance(text, str):
+            return text 
+        
+        text = re.sub(r"[^a-zA-Z0-9가-힣\s.,!?]", "", text)
+        if re.fullmatch(r"[\d.]+", text):
+            text = text.rstrip(".")
+        text = re.sub(r"\s+", " ", text).strip()
+        return text 
+
+    def remove_repeated_patterns(self, text):
+        """
+        - 한 단어 내에서 반복되는 패턴 제거 (예: "네네네네네" → "네")
+        - 연속된 단어도 하나만 남기기 (예: "네 네 네 네" → "네")
+        """
+        text = re.sub(r"(.)\1{2,}", r"\1", text)  # 같은 글자가 3번 이상 반복되면 1개로 축소
+        words = text.split()
+        cleaned_words = [words[i] for i in range(len(words)) if i == 0 or words[i] != words[i - 1]]
+        return " ".join(cleaned_words) if cleaned_words else None
+
 
 class TimeProcessor:
     def is_similar(self, diar_seg, stt_result):
@@ -33,7 +58,8 @@ class TimeProcessor:
         '''
         TIME_TOLERANCE = 1.5   # 허용 오차(초)
         diar_start, diar_end = diar_seg['start'], diar_seg['end']
-        stt_start, stt_end = stt_result[2], stt_result[3]
+        # stt_start, stt_end = stt_result[2], stt_result[3]
+        stt_start, stt_end = stt_result['start_time'], stt_result['end_time']
 
         diar_duration = diar_end - diar_start
         stt_duration = stt_end - stt_start
@@ -463,7 +489,7 @@ class SpeakerDiarizer:
                 merged_segments.append(seg)   # 새로운 화자 구간 추가
         return merged_segments
             
-    def seperate_speakers(self, data_p, audio_file, local=True, num_speakers=None, save_path=None, file_name=None):
+    def seperate_speakers(self, audio_p, audio_file, local=True, num_speakers=None, save_path=None, file_name=None):
         """
         화자 분리 실행 및 결과 저장.
         args:
@@ -473,7 +499,7 @@ class SpeakerDiarizer:
             num_speakers (int, optional): 예상 화자 수. 기본값은 Pyannote에서 자동 감지.
         """
         if isinstance(audio_file, io.BytesIO):   # 입력 데이터 형식 확인 및 변환
-            audio_file = data_p.bytesio_to_tempfile(audio_file)
+            audio_file = audio_p.bytesio_to_tempfile(audio_file)
 
         results = []
         if local:
@@ -493,10 +519,11 @@ class SpeakerDiarizer:
 class ResultMapper:
     def map_speaker_with_nested_check(self, time_p, stt_result, diar_segments, meeting_id=None, table_editor=None):
         """ stt_result: conv_id, start_time, end_time, text, conf_id """
-        conv_id = stt_result[0]
+        if not meeting_id: 
+            pass
+        #    conv_id = stt_result[0]
         print(f'stt_segment: {stt_result}')
-        stt_start, stt_end = stt_result[2], stt_result[3]
-        
+        stt_start, stt_end = stt_result['start_time'], stt_result['end_time']
         candidates = []
         for diar_seg in diar_segments:   # STT 결과값과 겹치는 Diar 구간 탐색 
             diar_start, diar_end = diar_seg['start'], diar_seg['end']
@@ -505,7 +532,7 @@ class ResultMapper:
 
         if not candidates:
             print("No overlapping segments found.")
-            return    # DB 업데이트 x 
+            return "Unknown"   # DB 업데이트 x 
 
         max_overlap = 0
         best_speaker = None 
@@ -520,7 +547,7 @@ class ResultMapper:
                     if time_p.is_similar(nested, stt_result):
                         if meeting_id == None: 
                             stt_result['speaker'] = nested['speaker']
-                            return stt_result
+                            return nested['speaker']
                         else:
                             updated_result = (conv_id, nested['speaker'])
                             table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)
@@ -533,6 +560,7 @@ class ResultMapper:
                 max_overlap = overlap_duration 
                 best_speaker = candidate['speaker']
         if best_speaker:
-            updated_result = (conv_id, best_speaker)
-            table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)
-            return 
+            '''if not meeting_id:
+                updated_result = (conv_id, best_speaker) 
+                table_editor.edit_poc_conf_log_tb('update', 'ibk_poc_conf_log', data=meeting_id, val=updated_result)'''
+            return best_speaker
