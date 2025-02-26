@@ -29,7 +29,7 @@ def main(args):
     stt_module.load_word_dictionary('./config/word_dict.json')
 
     start = time.time()
-    results = [] 
+    results = ""
     if args.chunk_length == None:
         result = stt_module.transcribe_text(audio_p, audio_file_path)
         with open(os.path.join('./data', stt_file_name), "w", encoding="utf-8") as f:
@@ -37,7 +37,6 @@ def main(args):
         print(f"모든 결과가 JSON 파일 '{os.path.join('./data', stt_file_name)}'로 저장되었습니다.")
         print(f"소요 시간: {time.time() - start}")
     else:
-        # filtered_audio = noise_handler.filter_audio_with_ffmpeg(audio_file_path, high_cutoff=50, low_cutoff=3500)
         audio_chunk = audio_p.audio_chunk(audio_file_path, chunk_length=args.chunk_length)
         for idx, chunk in enumerate(audio_chunk):
             chunk_offset = idx * args.chunk_length     # 청크의 시작 시간 오프셋 계산
@@ -45,11 +44,12 @@ def main(args):
                 chunk.export(temp_audio_file.name, format="wav")
                 temp_audio_path = temp_audio_file.name
 
-            stt_result = stt_module.transcribe_text(audio_p, temp_audio_path, logger=logger, chunk_offset=chunk_offset)
-            results.append(stt_result)
-        flatten_result = data_p.flatt_list(results)
+            stt_result = stt_module.transcribe_text_api(audio_p, temp_audio_path, logger=logger, chunk_offset=chunk_offset) + " "
+            # results.append(stt_result)
+            results += stt_result
+        # flatten_result = data_p.flatt_list(results)
         with open(os.path.join('./meeting_records', 'stt', stt_file_name), "w", encoding="utf-8") as output_file:
-            json.dump(flatten_result, output_file, ensure_ascii=False, indent=4)
+            json.dump(results, output_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == '__main__':
