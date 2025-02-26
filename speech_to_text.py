@@ -29,7 +29,7 @@ def main(args):
     stt_module.load_word_dictionary('./config/word_dict.json')
 
     start = time.time()
-    results = ""
+    results = []
     if args.chunk_length == None:
         result = stt_module.transcribe_text(audio_p, audio_file_path)
         with open(os.path.join('./data', stt_file_name), "w", encoding="utf-8") as f:
@@ -44,12 +44,12 @@ def main(args):
                 chunk.export(temp_audio_file.name, format="wav")
                 temp_audio_path = temp_audio_file.name
 
-            stt_result = stt_module.transcribe_text_api(audio_p, temp_audio_path, logger=logger, chunk_offset=chunk_offset) + " "
-            # results.append(stt_result)
-            results += stt_result
-        # flatten_result = data_p.flatt_list(results)
+            stt_result = stt_module.transcribe_text_api(audio_p, temp_audio_path, logger=logger, chunk_offset=chunk_offset) 
+            results.append(stt_result)
+            # results += stt_result
+        flatten_result = data_p.flatt_list(results)
         with open(os.path.join('./meeting_records', 'stt', stt_file_name), "w", encoding="utf-8") as output_file:
-            json.dump(results, output_file, ensure_ascii=False, indent=4)
+            json.dump(flatten_result, output_file, ensure_ascii=False, indent=4)
 
 
 if __name__ == '__main__':
