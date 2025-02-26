@@ -486,7 +486,7 @@ class SpeakerDiarizer:
             pass
         # filtered_result = self.filter_speaker_segments(results)
         # merged_result = self.merge_diarization_segments_with_priority(filtered_result)
-        diar_result = self.rename_speaker(results)
+        diar_result = self.rename_speaker(results, num_speakers)
         return diar_result
 
 
