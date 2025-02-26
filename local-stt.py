@@ -10,15 +10,6 @@ import time
 import json
 import os
 
-
-def clean_stt_text(text):
-    import re
-    # 2회 이상 반복되는 '아' 또는 '어' 같은 의미 없는 음절 제거
-    text = re.sub(r'\b([아어으이오우에얘예])\s*\1+\b', '', text)
-    # 3회 이상 연속된 동일 단어 제거 (예: "아 아 아 아" -> "")
-    text = re.sub(r'(\b\w+\b)(\s+\1){2,}', r'\1', text)
-    return text.strip()
-
 def main(args):
     stt_file_name = "stt_update_" + args.file_name.split('.')[1].split('/')[-1] + '.json'
     audio_file_path = args.file_name    
