@@ -2,7 +2,7 @@
 # write by Jaedong, Oh (2025.03.26)
 ARG BASE_IMAGE=pytorch/pytorch:2.1.0-cuda12.1-cudnn8-devel
 FROM ${BASE_IMAGE}
-WORKDIR /faicord 
+WORKDIR /speech-recognition 
 COPY . .
 ENV LC_ALL=ko_KR.UTF-8 
 
