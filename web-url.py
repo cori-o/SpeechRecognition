@@ -93,14 +93,14 @@ def run_python_code():
     file_name = data['file_name']     # /jsh0630/meeting_records/meeting_302_2025-01-09-16-25-30.wav
     participant_cnt = data['participant']
 
-    file_path = '/ibk/meeting_records/'
-    diar_result_path = '/ibk/meeting_records/diar_result/'
+    file_path = '/speech-recognition/meeting_records/'
+    diar_result_path = ''/speech-recognition/meeting_records/diar_result/'
     new_file_name = file_path + file_name.split('/')[-1]    # meeting_302_2025-01-09-16-25-30.wav
     audio_file_name = new_file_name.split('/')[-1]   # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
 
     pyannotate_url = "https://api.pyannote.ai/v1/diarize"
-    file_url = f"https://ibkpoc.fingerservice.co.kr/stt/?audio_file_name={audio_file_name}"
-    webhook_url = "https://ibkpoc.fingerservice.co.kr/stt/result"
+    file_url = f"https://[your domain]/stt/?audio_file_name={audio_file_name}"
+    webhook_url = "https://[your domain]/stt/result"
     headers = { "Authorization": f"Bearer {pyannot_api_key}" }
     data = {
         "webhook": webhook_url,
@@ -119,7 +119,7 @@ def run_stt_code():
     data = request.get_json()
     file_name = data['file_name']     # /jsh0630/meeting_records/meeting_302_2025-01-09-16-25-30.wav
 
-    file_path = '/ibk/meeting_records/'
+    file_path = '/speech-recognition/meeting_records/'
     new_file_name = file_path + file_name.split('/')[-1]    # /ibk/meeting_records/meeting_302_2025-01-09-16-25-30.wav
     audio_file_name = new_file_name.split('/')[-1]   # meeting_302_2025-01-09-16-25-30.wav
     meeting_id = int(audio_file_name.split('_')[1])
