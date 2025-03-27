@@ -1,7 +1,7 @@
 {   
-    "host": "10.17.10.14",
-    "db_name": "ibk_poc_db",
-    "user_id": "ibk-manager",
-    "user_pw": "fingerai2024!",
+    "host": "",
+    "db_name": "",
+    "user_id": "",
+    "user_pw": "",
     "port": 5432
 }
